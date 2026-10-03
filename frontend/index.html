@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Document Automation & AI Intelligence Suite</title>
+    <!-- Modern Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Top Navigation Bar -->
+        <header class="navbar">
+            <div class="nav-left">
+                <button class="nav-toggle-btn" id="sidebarToggleBtn" aria-label="Toggle Companies Sidebar" title="Toggle Companies Sidebar (Ctrl+B)">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <div class="nav-brand">
+                    <div class="brand-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="20" x2="18" y2="10"></line>
+                            <line x1="12" y1="20" x2="12" y2="4"></line>
+                            <line x1="6" y1="20" x2="6" y2="14"></line>
+                        </svg>
+                    </div>
+                    <div class="brand-titles">
+                        <span class="brand-title">Financial AI Suite</span>
+                        <span class="brand-subtitle">Local Document Automation & Research</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="nav-center-actions">
+                <a href="/graph" target="_blank" class="nav-graph-btn" title="Open Dedicated Neo4j-Style Graph Visualizer in New Tab">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="18" cy="5" r="3"></circle>
+                        <circle cx="6" cy="12" r="3"></circle>
+                        <circle cx="18" cy="19" r="3"></circle>
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                    </svg>
+                    <span>Graph DB Visualizer</span>
+                    <span class="nav-graph-pill" id="navGraphPill">107 Nodes</span>
+                </a>
+            </div>
+
+            <div class="nav-status-group">
+                <div class="status-pill" id="dbStatusPill">
+                    <span class="status-dot"></span>
+                    <span class="status-label">Database: Checking...</span>
+                </div>
+                <div class="status-pill llm-pill" id="llmStatusPill">
+                    <span class="status-icon">🤖</span>
+                    <span class="status-label">LLM: phi3:mini (Local)</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Mobile Backdrop Overlay -->
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+        <!-- Main Workspace Grid -->
+        <div class="workspace-grid" id="workspaceGrid">
+            <!-- Sidebar / Company Directory -->
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-header">
+                    <div class="sidebar-title-row">
+                        <h2 class="sidebar-title">Tracked Companies</h2>
+                        <div class="sidebar-header-actions">
+                            <span class="badge" id="companyCountBadge">3 Active</span>
+                            <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Collapse Sidebar (Ctrl+B)">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="11 17 6 12 11 7"></polyline>
+                                    <polyline points="18 17 13 12 18 7"></polyline>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <button class="btn btn-screener" id="btnOpenScraperModal" title="Scrape any Indian company from Screener.in">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        <span>Scrape from Screener</span>
+                    </button>
+                    <div class="search-box">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        <input type="text" id="companySearchInput" placeholder="Search any company (e.g. Reliance, TCS, Tata)..." autocomplete="off">
+                        <div class="search-live-spinner" id="searchLiveSpinner" style="display: none;"></div>
+                    </div>
+                    <div class="live-search-dropdown" id="liveSearchDropdown" style="display: none;"></div>
+                </div>
+
+                <div class="company-list" id="companyList">
+                    <!-- Dynamic Company Items Loaded Here -->
+                    <div class="loading-state">
+                        <div class="spinner"></div>
+                        <span>Loading companies...</span>
+                    </div>
+                </div>
+
+                <div class="sidebar-footer">
+                    <div class="cpu-stat-card">
+                        <div class="cpu-stat-header">
+                            <span class="cpu-title">Local Inference Profile</span>
+                            <span class="cpu-badge">CPU Friendly</span>
+                        </div>
+                        <p class="cpu-desc">Intel Core i3 12th-Gen • 16 GB RAM • Zero Cloud Dependencies</p>
+                    </div>
+                </div>
+            </aside>
+ 
+            <!-- Sidebar Resizer Splitter -->
+            <div class="resizer-handle" id="sidebarResizer" title="Drag to resize sidebar width"></div>
+
+            <!-- Main Content Pane -->
+            <main class="content-pane" id="contentPane">
+                <!-- Floating button to expand sidebar when collapsed -->
+                <button class="sidebar-expand-floating-btn" id="sidebarExpandFloatingBtn" title="Expand Sidebar (Ctrl+B)" style="display: none;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="13 17 18 12 13 7"></polyline>
+                        <polyline points="6 17 11 12 6 7"></polyline>
+                    </svg>
+                    <span>Companies</span>
+                </button>
+ 
+                <!-- Live Screener Extraction Progress Banner -->
+                <div class="screener-live-progress-card" id="screenerLiveProgress" style="display:none;">
+                    <div class="slp-header">
+                        <div class="spinner slp-spinner"></div>
+                        <div class="slp-title-group">
+                            <h3 class="slp-title" id="slpTitle">Extracting from Screener.in...</h3>
+                            <p class="slp-subtitle" id="slpSubtitle">Connecting to live market feeds, extracting financials & downloading official reports</p>
+                        </div>
+                    </div>
+                    <div class="slp-stages" id="slpStages">
+                        <!-- Dynamic Stage Items -->
+                    </div>
+                </div>
+
+                <!-- Company Header Banner -->
+                <section class="company-hero-card" id="companyHero">
+                    <div class="hero-top-row">
+                        <div class="company-identity">
+                            <div class="ticker-badge-row">
+                                <div class="ticker-badge" id="heroTicker">TCS</div>
+                                <span class="sector-badge" id="heroSector" style="display:none;">IT Services</span>
+                            </div>
+                            <div>
+                                <h1 class="company-name" id="heroName">Tata Consultancy Services Ltd.</h1>
+                                <a href="#" target="_blank" class="company-website-link" id="heroWebsite">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                                    </svg>
+                                    <span id="heroWebsiteText">https://www.tcs.com/investor-relations</span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Main Action & Download Buttons -->
+                        <div class="download-action-group">
+                            <!-- Download PDF -->
+                            <button class="btn btn-pdf" id="btnDownloadPdf" title="Download latest official PDF report">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="12" y1="18" x2="12" y2="12"></line>
+                                    <polyline points="9 15 12 18 15 15"></polyline>
+                                </svg>
+                                <span>Download PDF</span>
+                            </button>
+
+                            <!-- Download Excel (.xlsx) -->
+                            <button class="btn btn-excel" id="btnDownloadExcel" title="Export complete multi-sheet Excel dossier">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="3" y1="9" x2="21" y2="9"></line>
+                                    <line x1="3" y1="15" x2="21" y2="15"></line>
+                                    <line x1="9" y1="3" x2="9" y2="21"></line>
+                                    <line x1="15" y1="3" x2="15" y2="21"></line>
+                                </svg>
+                                <span>Export Excel (.xlsx)</span>
+                            </button>
+
+                            <!-- Download CSV (.csv) -->
+                            <button class="btn btn-csv" id="btnDownloadCsv" title="Export financial metrics as CSV table">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                                <span>Export CSV</span>
+                            </button>
+
+                            <!-- View Knowledge Subgraph -->
+                            <button class="btn btn-subgraph" id="btnHeroViewGraph" title="Explore this company's Knowledge Graph neighborhood">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="18" cy="5" r="3"></circle>
+                                    <circle cx="6" cy="12" r="3"></circle>
+                                    <circle cx="18" cy="19" r="3"></circle>
+                                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                                </svg>
+                                <span>View Subgraph</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Company About Box -->
+                    <div class="hero-about-box" id="heroAboutBox" style="display:none;">
+                        <p class="hero-about-text" id="heroAboutText"></p>
+                    </div>
+
+                    <!-- Key Financial Ratios Ribbon -->
+                    <div class="key-ratios-ribbon" id="keyRatiosRibbon" style="display:none;">
+                        <div class="ratio-pill">
+                            <span class="ratio-lbl">Market Cap</span>
+                            <span class="ratio-val" id="ratioMarketCap">—</span>
+                        </div>
+                        <div class="ratio-pill">
+                            <span class="ratio-lbl">Current Price</span>
+                            <span class="ratio-val" id="ratioCurrentPrice">—</span>
+                        </div>
+                        <div class="ratio-pill">
+                            <span class="ratio-lbl">High / Low</span>
+                            <span class="ratio-val" id="ratioHighLow">—</span>
+                        </div>
+                        <div class="ratio-pill">
+                            <span class="ratio-lbl">Stock P/E</span>
+                            <span class="ratio-val" id="ratioStockPE">—</span>
+                        </div>
+                        <div class="ratio-pill">
+                            <span class="ratio-lbl">Book Value</span>
+                            <span class="ratio-val" id="ratioBookValue">—</span>
+                        </div>
+                        <div class="ratio-pill">
+                            <span class="ratio-lbl">Dividend Yield</span>
+                            <span class="ratio-val" id="ratioDivYield">—</span>
+                        </div>
+                        <div class="ratio-pill">
+                            <span class="ratio-lbl">ROCE</span>
+                            <span class="ratio-val" id="ratioROCE">—</span>
+                        </div>
+                        <div class="ratio-pill">
+                            <span class="ratio-lbl">ROE</span>
+                            <span class="ratio-val" id="ratioROE">—</span>
+                        </div>
+                    </div>
+
+                    <div class="hero-meta-bar">
+                        <div class="meta-item">
+                            <span class="meta-label">Latest Period:</span>
+                            <span class="meta-val" id="heroPeriod">FY2024</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Primary Currency:</span>
+                            <span class="meta-val" id="heroCurrency">USD ($)</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Reports Processed:</span>
+                            <span class="meta-val" id="heroReportCount">2 Reports</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">SHA-256 Duplication Check:</span>
+                            <span class="meta-val text-success">Verified Unique</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Document Processing Status Alert -->
+                <div id="heroStatusArea" style="display:none;"></div>
+
+                <!-- KPI Metric Highlights -->
+                <section class="kpi-grid">
+                    <!-- Revenue Card -->
+                    <div class="kpi-card card-cyan">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Total Revenue</span>
+                            <span class="kpi-growth growth-up" id="kpiRevenueGrowth">+4.1% YoY</span>
+                        </div>
+                        <div class="kpi-value" id="kpiRevenue">$29.08 B</div>
+                        <div class="kpi-subtext">Consolidated reported revenue</div>
+                    </div>
+
+                    <!-- Net Profit Card -->
+                    <div class="kpi-card card-emerald">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Net Profit</span>
+                            <span class="kpi-growth growth-up" id="kpiProfitGrowth">+7.1% YoY</span>
+                        </div>
+                        <div class="kpi-value" id="kpiProfit">$5.58 B</div>
+                        <div class="kpi-subtext">Net margin of 19.2%</div>
+                    </div>
+
+                    <!-- Operating Margin Card -->
+                    <div class="kpi-card card-indigo">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Operating Margin</span>
+                            <span class="kpi-tag" id="kpiOperatingProfit">$7.15B EBIT</span>
+                        </div>
+                        <div class="kpi-value" id="kpiMargin">24.6%</div>
+                        <div class="kpi-subtext">Healthy operational discipline</div>
+                    </div>
+
+                    <!-- EPS Card -->
+                    <div class="kpi-card card-amber">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Diluted EPS</span>
+                            <span class="kpi-tag">Per Share</span>
+                        </div>
+                        <div class="kpi-value" id="kpiEps">$1.54</div>
+                        <div class="kpi-subtext">Earnings per share</div>
+                    </div>
+                </section>
+
+                <!-- Navigation Tabs for Detailed Views -->
+                <div class="details-tab-nav">
+                    <button class="tab-btn active" data-tab="tab-financials">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                            <line x1="8" y1="21" x2="16" y2="21"></line>
+                            <line x1="12" y1="17" x2="12" y2="21"></line>
+                        </svg>
+                        <span>Financial Statements</span>
+                    </button>
+                    <button class="tab-btn" data-tab="tab-risks">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                            <line x1="12" y1="9" x2="12" y2="13"></line>
+                            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                        </svg>
+                        <span>Extracted Risk Factors & Citations</span>
+                    </button>
+                    <button class="tab-btn" data-tab="tab-documents">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                        </svg>
+                        <span>Annual Reports & Filings</span>
+                    </button>
+                    <button class="tab-btn" data-tab="tab-concalls">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                            <line x1="12" y1="19" x2="12" y2="23"></line>
+                            <line x1="8" y1="23" x2="16" y2="23"></line>
+                        </svg>
+                        <span>Concalls & Transcripts</span>
+                    </button>
+                    <button class="tab-btn tab-graph-highlight" data-tab="tab-graph-view" id="btnTabGraphView">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="18" cy="5" r="3"></circle>
+                            <circle cx="6" cy="12" r="3"></circle>
+                            <circle cx="18" cy="19" r="3"></circle>
+                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                        </svg>
+                        <span>Knowledge Graph (Neo4j View)</span>
+                    </button>
+                    <button class="tab-btn tab-ai-highlight" data-tab="tab-ai-chat">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                        </svg>
+                        <span>Graph RAG & AI Assistant</span>
+                    </button>
+                </div>
+
+                <!-- Tab 0: Graph RAG & Local AI Assistant -->
+                <div class="tab-content" id="tab-ai-chat">
+                    <div class="card panel-card rag-card">
+                        <div class="panel-header">
+                            <div>
+                                <h3 class="panel-title">Graph RAG Intelligence & Local AI Synthesis</h3>
+                                <p class="panel-desc">Traverses MySQL knowledge graphs to ground local Ollama Phi-3 with verified financial facts and page citations.</p>
+                            </div>
+                            <div class="rag-badge-group">
+                                <span class="badge badge-accent" id="ragModelBadge">Ollama: phi3:mini</span>
+                                <span class="badge badge-graph">Knowledge Graph Active</span>
+                            </div>
+                        </div>
+
+                        <!-- Inquiry Input Box -->
+                        <div class="rag-input-container">
+                            <div class="rag-input-box">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <input type="text" id="aiQuestionInput" placeholder="Ask any financial question (e.g. 'What was TCS revenue growth in FY2024?', 'Compare Apple vs Microsoft operating margins')...">
+                                <button class="btn btn-rag" id="btnAskAi">
+                                    <span id="btnAskAiText">Ask Assistant</span>
+                                    <div class="spinner-sm" id="aiSpinner" style="display:none;"></div>
+                                </button>
+                            </div>
+
+                            <!-- Suggested Prompt Chips -->
+                            <div class="prompt-chips">
+                                <span class="chip-label">Quick Inquiries:</span>
+                                <button class="chip" onclick="submitQuickQuestion('What was TCS revenue growth in FY2024?')">TCS FY24 Revenue & Growth</button>
+                                <button class="chip" onclick="submitQuickQuestion('Compare operating margins between Apple and Microsoft')">Apple vs Microsoft Margins</button>
+                                <button class="chip" onclick="submitQuickQuestion('What supply chain and regulatory risks did Apple disclose?')">Apple Supply Chain Risks</button>
+                                <button class="chip" onclick="submitQuickQuestion('Which company has the highest net profit in the database?')">Highest Net Profit</button>
+                            </div>
+                        </div>
+
+                        <!-- Graph RAG Subgraph Traversal Visualization -->
+                        <div class="subgraph-view" id="subgraphView" style="display:none;">
+                            <div class="subgraph-header">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="6" cy="6" r="3"></circle>
+                                    <circle cx="18" cy="18" r="3"></circle>
+                                    <line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line>
+                                </svg>
+                                <span>Retrieved Subgraph Nodes (MySQL Knowledge Graph):</span>
+                            </div>
+                            <div class="nodes-container" id="nodesContainer">
+                                <!-- Nodes populated here -->
+                            </div>
+                        </div>
+
+                        <!-- AI Response Display Card -->
+                        <div class="ai-response-card" id="aiResponseCard" style="display:none;">
+                            <div class="ai-response-header">
+                                <div class="ai-author">
+                                    <div class="ai-avatar">🤖</div>
+                                    <div>
+                                        <div class="ai-name">Financial Research Assistant</div>
+                                        <div class="ai-model-tag" id="aiModelTag">Engine: phi3:mini (Local CPU)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="ai-response-body" id="aiResponseBody">
+                                <!-- Response populated here -->
+                            </div>
+                            <!-- Verified Citations -->
+                            <div class="ai-citations-box" id="aiCitationsBox" style="display:none;">
+                                <div class="citations-header">Verified Provenance Citations:</div>
+                                <div class="citations-list" id="citationsList"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 1: Financial Statements Table -->
+                <div class="tab-content active" id="tab-financials">
+                    <div class="card panel-card">
+                        <div class="panel-header">
+                            <div>
+                                <h3 class="panel-title">Multi-Period Performance Breakdown</h3>
+                                <p class="panel-desc">Structured financial statement extractions validated via Pydantic schemas.</p>
+                            </div>
+                            <button class="btn btn-sm btn-outline" id="btnExportFinTable">
+                                <span>Export Table</span>
+                            </button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="data-table" id="financialTable">
+                                <thead>
+                                    <tr>
+                                        <th>Reporting Period</th>
+                                        <th>Revenue</th>
+                                        <th>Revenue Growth</th>
+                                        <th>Net Profit</th>
+                                        <th>Profit Growth</th>
+                                        <th>Operating Profit</th>
+                                        <th>Operating Margin</th>
+                                        <th>Diluted EPS</th>
+                                        <th>Total Assets</th>
+                                        <th>Cash Flow</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="financialTableBody">
+                                    <!-- Dynamic Rows Loaded Here -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Quarterly Results Breakdown -->
+                        <div class="panel-header" id="quarterlySectionHeader" style="margin-top: 2rem; display: none;">
+                            <div>
+                                <h3 class="panel-title">Quarterly Financial Results</h3>
+                                <p class="panel-desc">Recent quarter-on-quarter revenue, operating profit, and net profit from Screener.in.</p>
+                            </div>
+                            <span class="badge badge-accent">Quarterly Filings</span>
+                        </div>
+                        <div class="table-responsive" id="quarterlyTableContainer" style="display: none;">
+                            <table class="data-table" id="quarterlyTable">
+                                <thead>
+                                    <tr>
+                                        <th>Quarter</th>
+                                        <th>Sales / Revenue</th>
+                                        <th>Operating Profit</th>
+                                        <th>OPM %</th>
+                                        <th>Net Profit</th>
+                                        <th>EPS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="quarterlyTableBody">
+                                    <!-- Dynamic Quarterly Rows Loaded Here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Risk Factors with Provenance -->
+                <div class="tab-content" id="tab-risks">
+                    <div class="card panel-card">
+                        <div class="panel-header">
+                            <div>
+                                <h3 class="panel-title">AI Extracted Risk Factors & Provenance</h3>
+                                <p class="panel-desc">Categorized risk disclosures with verified source page citations from official PDF reports.</p>
+                            </div>
+                            <span class="badge badge-accent">Local LLM Validated</span>
+                        </div>
+                        <div class="risks-grid" id="risksGrid">
+                            <!-- Dynamic Risk Cards Loaded Here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: PDF Document Registry -->
+                <div class="tab-content" id="tab-documents">
+                    <div class="card panel-card">
+                        <div class="panel-header">
+                            <div>
+                                <h3 class="panel-title">Downloaded Reports & SHA-256 Audit Trail</h3>
+                                <p class="panel-desc">Guaranteed duplicate detection using cryptographic SHA-256 hashing before LLM ingestion.</p>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="data-table" id="documentsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Report File Name</th>
+                                        <th>Type</th>
+                                        <th>Period</th>
+                                        <th>Cryptographic SHA-256 Hash</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="documentsTableBody">
+                                    <!-- Dynamic Documents Loaded Here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 4: Concalls & Transcripts -->
+                <div class="tab-content" id="tab-concalls">
+                    <div class="card panel-card">
+                        <div class="panel-header">
+                            <div>
+                                <h3 class="panel-title">Quarterly Earnings Call (Concall) Transcripts</h3>
+                                <p class="panel-desc">Official concall transcripts downloaded from Screener.in and ingested into MySQL Knowledge Graph for management guidance and Q&A analysis.</p>
+                            </div>
+                            <span class="badge badge-graph" id="concallCountBadge">0 Transcripts</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="data-table" id="concallsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Quarter / Period</th>
+                                        <th>Transcript Document</th>
+                                        <th>Cryptographic SHA-256 Hash</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="concallsTableBody">
+                                    <!-- Dynamic Concalls Loaded Here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 5: Interactive Neo4j-Style Knowledge Graph View -->
+                <div class="tab-content" id="tab-graph-view">
+                    <div class="card panel-card graph-explorer-card">
+                        <div class="panel-header">
+                            <div>
+                                <h3 class="panel-title">Interactive Knowledge Graph Explorer</h3>
+                                <p class="panel-desc">Visualizes how companies, annual reports, quarterly concall transcripts, financial metrics, and risk factors are stored and connected in MySQL.</p>
+                            </div>
+                            <div class="graph-header-controls">
+                                <span class="badge badge-accent" id="graphStatsBadge">Loading Graph...</span>
+                                <input type="text" id="embeddedNodeSearch" class="embedded-graph-search" placeholder="Search node...">
+                                <button class="btn btn-sm btn-outline" id="btnResetGraphLayout" title="Reset Camera & Layout">Center View</button>
+                                <button class="btn btn-sm btn-outline" id="btnZoomInGraph" title="Zoom In">+</button>
+                                <button class="btn btn-sm btn-outline" id="btnZoomOutGraph" title="Zoom Out">-</button>
+                                <a href="/graph" target="_blank" class="btn btn-sm btn-graph-fullscreen" title="Open in dedicated full-screen visualizer">
+                                    <span>Fullscreen ↗</span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Graph Filter & Legend Bar -->
+                        <div class="graph-legend-bar">
+                            <span class="legend-title">Entity Legend:</span>
+                            <div class="legend-item"><span class="legend-dot" style="background:#f59e0b; box-shadow: 0 0 8px #f59e0b;"></span><span>Company</span></div>
+                            <div class="legend-item"><span class="legend-dot" style="background:#06b6d4; box-shadow: 0 0 8px #06b6d4;"></span><span>Annual Report</span></div>
+                            <div class="legend-item"><span class="legend-dot" style="background:#a855f7; box-shadow: 0 0 8px #a855f7;"></span><span>Concall Transcript</span></div>
+                            <div class="legend-item"><span class="legend-dot" style="background:#10b981; box-shadow: 0 0 8px #10b981;"></span><span>Financial Metric</span></div>
+                            <div class="legend-item"><span class="legend-dot" style="background:#f43f5e; box-shadow: 0 0 8px #f43f5e;"></span><span>Risk Factor</span></div>
+                            <div class="legend-item"><span class="legend-dot" style="background:#6366f1; box-shadow: 0 0 8px #6366f1;"></span><span>Strategic Guidance</span></div>
+                        </div>
+
+                        <!-- Graph Explorer Main Canvas + Inspector Grid -->
+                        <div class="graph-explorer-body" id="graphExplorerBody">
+                            <div class="canvas-wrapper">
+                                <canvas id="knowledgeGraphCanvas"></canvas>
+                                <div class="canvas-overlay-hint">
+                                    <span>💡 Click any node to inspect properties • Drag to rearrange • Scroll to zoom</span>
+                                </div>
+                                <button class="btn btn-sm btn-outline canvas-show-inspector-btn" id="btnShowInspector" style="display:none;" title="Open Inspector Drawer">
+                                    <span>Inspector ➔</span>
+                                </button>
+                            </div>
+
+                            <!-- Inspector Resizer Splitter -->
+                            <div class="inspector-resizer" id="inspectorResizer" title="Drag to resize inspector width"></div>
+
+                            <!-- Right Inspector Drawer -->
+                            <div class="graph-inspector" id="graphInspector">
+                                <div class="inspector-header">
+                                    <div class="inspector-header-top">
+                                        <span class="inspector-badge" id="inspectorBadge">Node Inspector</span>
+                                        <button class="inspector-toggle-btn" id="inspectorToggleBtn" title="Hide Inspector">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <h4 class="inspector-title" id="inspectorTitle">Select a Node</h4>
+                                </div>
+                                <div class="inspector-body" id="inspectorBody">
+                                    <p class="inspector-placeholder">Click on any node in the graph (Company, Filing, Concall, Metric, or Risk) to inspect its verified data, page citations, and relationship edges.</p>
+                                </div>
+                                <div class="inspector-actions" id="inspectorActions" style="display:none;">
+                                    <button class="btn btn-sm btn-rag" id="btnAskAboutNode">Ask AI About Node</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Screener.in Scraper Modal -->
+    <div class="modal-backdrop" id="scraperModal" style="display:none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <div class="modal-icon-badge">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="modal-title">Scrape & Ingest via Screener.in</h3>
+                        <p class="modal-subtitle">Search any Indian company, parse P&L, download official Annual Report, and auto-build Graph RAG knowledge graph.</p>
+                    </div>
+                </div>
+                <button class="modal-close" id="btnCloseModal" title="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-field">
+                    <label class="modal-label" for="screenerSearchInput">Search Company or Ticker on Screener.in</label>
+                    <div class="screener-input-wrap">
+                        <input type="text" id="screenerSearchInput" class="modal-input" placeholder="e.g. INFY, RELIANCE, HDFCBANK, TATAMOTORS, ITC..." autocomplete="off">
+                        <div class="screener-dropdown" id="screenerDropdown" style="display:none;"></div>
+                    </div>
+                </div>
+
+                <div class="modal-chips-row">
+                    <span class="chips-label">Quick Suggestions:</span>
+                    <button type="button" class="tag-chip" onclick="selectScreenerSuggestion('INFY')">INFY (Infosys)</button>
+                    <button type="button" class="tag-chip" onclick="selectScreenerSuggestion('RELIANCE')">RELIANCE</button>
+                    <button type="button" class="tag-chip" onclick="selectScreenerSuggestion('HDFCBANK')">HDFCBANK</button>
+                    <button type="button" class="tag-chip" onclick="selectScreenerSuggestion('TATAMOTORS')">TATAMOTORS</button>
+                </div>
+
+                <!-- Pipeline Progress Stepper -->
+                <div class="pipeline-card" id="pipelineProgressCard" style="display:none;">
+                    <div class="pipeline-header">
+                        <div class="spinner-sm" id="pipelineSpinner"></div>
+                        <span class="pipeline-status-text" id="pipelineStatusText">Executing Screener Ingestion Pipeline...</span>
+                    </div>
+                    <div class="pipeline-stages" id="pipelineStages"></div>
+                </div>
+
+                <!-- Ingestion Result Banner -->
+                <div class="ingestion-result-card" id="ingestionResultCard" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="btnCancelModal">Cancel</button>
+                <button class="btn btn-primary btn-run-ingest" id="btnExecuteIngest">
+                    <span id="btnExecuteIngestText">Scrape & Ingest into Knowledge Graph</span>
+                    <div class="spinner-sm" id="ingestBtnSpinner" style="display:none;"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

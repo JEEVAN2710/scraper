@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Graph Database Explorer • Financial AI Suite</title>
+    <!-- Modern Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #060911;
+            --bg-surface: #0c1222;
+            --bg-card: rgba(15, 23, 42, 0.85);
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --border-accent: rgba(6, 182, 212, 0.35);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+            --accent-cyan: #06b6d4;
+            --accent-cyan-glow: rgba(6, 182, 212, 0.35);
+            --accent-emerald: #10b981;
+            --accent-indigo: #6366f1;
+            --accent-amber: #f59e0b;
+            --accent-rose: #f43f5e;
+            --accent-purple: #a855f7;
+            --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: var(--font-body);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Modern Visible Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(11, 17, 33, 0.95);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.22);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-cyan);
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.6);
+        }
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.22) rgba(11, 17, 33, 0.95);
+        }
+
+        /* Top Header Bar */
+        .graph-header {
+            height: 64px;
+            background: rgba(12, 18, 34, 0.9);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1.5rem;
+            z-index: 50;
+            gap: 1rem;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .btn-back {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            color: var(--text-main);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .btn-back:hover {
+            background: rgba(6, 182, 212, 0.15);
+            border-color: var(--border-accent);
+            color: var(--accent-cyan);
+            transform: translateX(-2px);
+        }
+
+        .header-title-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header-title {
+            font-family: var(--font-heading);
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            background: linear-gradient(90deg, #ffffff, #38bdf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .header-center {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            max-width: 580px;
+            justify-content: center;
+        }
+
+        .company-select {
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-main);
+            padding: 7px 12px;
+            border-radius: var(--radius-sm);
+            font-size: 0.85rem;
+            font-family: var(--font-body);
+            outline: none;
+            cursor: pointer;
+            transition: border-color 0.2s ease;
+        }
+
+        .company-select:focus {
+            border-color: var(--accent-cyan);
+        }
+
+        .search-container {
+            position: relative;
+            flex: 1;
+        }
+
+        .search-input {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-main);
+            padding: 7px 12px 7px 32px;
+            border-radius: var(--radius-sm);
+            font-size: 0.85rem;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .search-input:focus {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.2);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-dim);
+            pointer-events: none;
+        }
+
+        .search-results-dropdown {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            background: #0d1527;
+            border: 1px solid var(--border-accent);
+            border-radius: var(--radius-sm);
+            max-height: 240px;
+            overflow-y: auto;
+            z-index: 100;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7);
+            display: none;
+        }
+
+        .search-result-item {
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            font-size: 0.82rem;
+            transition: background 0.15s ease;
+        }
+
+        .search-result-item:hover {
+            background: rgba(6, 182, 212, 0.15);
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .stat-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            background: rgba(6, 182, 212, 0.12);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            border-radius: 999px;
+            font-size: 0.78rem;
+            color: var(--accent-cyan);
+            font-weight: 600;
+        }
+
+        /* Filter Subheader Bar */
+        .filter-bar {
+            height: 44px;
+            background: rgba(8, 13, 25, 0.95);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            padding: 0 1.5rem;
+            gap: 8px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            z-index: 40;
+        }
+
+        .filter-bar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .filter-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-dim);
+            font-weight: 600;
+            margin-right: 6px;
+            white-space: nowrap;
+        }
+
+        .filter-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-subtle);
+            border-radius: 999px;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .filter-chip:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+        }
+
+        .filter-chip.active {
+            background: rgba(6, 182, 212, 0.15);
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+        }
+
+        .filter-chip .chip-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        /* Main Explorer Area */
+        .explorer-main {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+        }
+
+        #graphCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: grab;
+            touch-action: none;
+        }
+
+        #graphCanvas:active {
+            cursor: grabbing;
+        }
+
+        /* Floating HUD Controls */
+        .hud-controls {
+            position: absolute;
+            bottom: 24px;
+            left: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 30;
+        }
+
+        .hud-btn-group {
+            display: flex;
+            background: rgba(12, 18, 34, 0.9);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        }
+
+        .hud-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 8px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .hud-btn:hover {
+            background: rgba(6, 182, 212, 0.15);
+            color: var(--accent-cyan);
+        }
+
+        .hud-btn:not(:last-child) {
+            border-right: 1px solid var(--border-subtle);
+        }
+
+        .canvas-hint {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(12, 18, 34, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-subtle);
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            pointer-events: none;
+            z-index: 20;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Slide-Out Inspector Drawer */
+        .inspector-drawer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 380px;
+            background: rgba(11, 17, 33, 0.92);
+            backdrop-filter: blur(20px);
+            border-left: 1px solid var(--border-subtle);
+            display: flex;
+            flex-direction: column;
+            z-index: 40;
+            transform: translateX(100%);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: -8px 0 32px rgba(0, 0, 0, 0.6);
+        }
+
+        .inspector-drawer.open {
+            transform: translateX(0);
+        }
+
+        .inspector-header {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+        }
+
+        .inspector-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius-sm);
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+        }
+
+        .inspector-title {
+            font-family: var(--font-heading);
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-main);
+            line-height: 1.3;
+        }
+
+        .inspector-close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .inspector-close-btn:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .inspector-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .inspector-section-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-dim);
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .properties-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+        }
+
+        .properties-table tr {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .prop-key {
+            padding: 8px 4px;
+            color: var(--text-muted);
+            font-weight: 500;
+            width: 40%;
+        }
+
+        .prop-val {
+            padding: 8px 4px;
+            color: var(--text-main);
+            font-weight: 600;
+            word-break: break-word;
+        }
+
+        .neighbor-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .neighbor-item {
+            padding: 8px 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border-left: 3px solid var(--accent-cyan);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .neighbor-item:hover {
+            background: rgba(6, 182, 212, 0.12);
+            transform: translateX(3px);
+        }
+
+        .neighbor-label {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .neighbor-rel {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+
+        .inspector-footer {
+            padding: 1.25rem;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .btn-ai-inquire {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px;
+            background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
+            border: none;
+            border-radius: var(--radius-sm);
+            color: #fff;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .btn-ai-inquire:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(6, 9, 17, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            z-index: 60;
+            transition: opacity 0.3s ease;
+        }
+
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid rgba(6, 182, 212, 0.2);
+            border-top-color: var(--accent-cyan);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .header-subtitle { display: none; }
+            .inspector-drawer { width: 100%; }
+            .canvas-hint { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Header Bar -->
+    <header class="graph-header">
+        <div class="header-left">
+            <a href="/" class="btn-back" title="Return to Dashboard">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+                <span>Dashboard</span>
+            </a>
+            <div class="header-title-group">
+                <h1 class="header-title">Knowledge Graph Database Explorer</h1>
+                <span class="header-subtitle">Live In-Memory Graph • Zero SQL Query Bottleneck</span>
+            </div>
+        </div>
+
+        <div class="header-center">
+            <select class="company-select" id="companySelect">
+                <option value="">Consolidated Graph (All Companies)</option>
+            </select>
+            <div class="search-container">
+                <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" class="search-input" id="nodeSearchInput" placeholder="Locate node (e.g. Adani, Revenue, Capex, Risk)..." autocomplete="off">
+                <div class="search-results-dropdown" id="searchResults"></div>
+            </div>
+        </div>
+
+        <div class="header-right">
+            <div class="stat-badge" id="graphStatBadge">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="12" cy="12" r="10"></circle>
+                </svg>
+                <span id="statText">Connecting...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Entity Filter Bar -->
+    <nav class="filter-bar">
+        <span class="filter-label">Filter Entities:</span>
+        <button class="filter-chip active" data-type="all"><span>All</span></button>
+        <button class="filter-chip active" data-type="company"><span class="chip-dot" style="background:#f59e0b;"></span><span>Companies</span></button>
+        <button class="filter-chip active" data-type="annual_report"><span class="chip-dot" style="background:#06b6d4;"></span><span>Annual Reports</span></button>
+        <button class="filter-chip active" data-type="concall"><span class="chip-dot" style="background:#a855f7;"></span><span>Concall Transcripts</span></button>
+        <button class="filter-chip active" data-type="metric"><span class="chip-dot" style="background:#10b981;"></span><span>Financial Metrics</span></button>
+        <button class="filter-chip active" data-type="risk"><span class="chip-dot" style="background:#f43f5e;"></span><span>Risk Disclosures</span></button>
+        <button class="filter-chip active" data-type="guidance"><span class="chip-dot" style="background:#6366f1;"></span><span>Management Guidance</span></button>
+    </nav>
+
+    <!-- Main Explorer Canvas Area -->
+    <main class="explorer-main">
+        <canvas id="graphCanvas"></canvas>
+
+        <!-- Floating HUD Controls -->
+        <div class="hud-controls">
+            <div class="hud-btn-group">
+                <button class="hud-btn" id="btnZoomIn" title="Zoom In (+)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        <line x1="11" y1="8" x2="11" y2="14"></line>
+                        <line x1="8" y1="11" x2="14" y2="11"></line>
+                    </svg>
+                </button>
+                <button class="hud-btn" id="btnZoomOut" title="Zoom Out (-)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        <line x1="8" y1="11" x2="14" y2="11"></line>
+                    </svg>
+                </button>
+                <button class="hud-btn" id="btnCenter" title="Center & Fit Camera (F)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <polyline points="9 21 3 21 3 15"></polyline>
+                        <line x1="21" y1="3" x2="14" y2="10"></line>
+                        <line x1="3" y1="21" x2="10" y2="14"></line>
+                    </svg>
+                </button>
+                <button class="hud-btn" id="btnTogglePhysics" title="Pause / Resume Physics (Space)">
+                    <svg id="physicsIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="6" y="4" width="4" height="16"></rect>
+                        <rect x="14" y="4" width="4" height="16"></rect>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="canvas-hint">
+            <span>💡 Click any node to inspect properties & neighbors • Drag nodes to rearrange • Scroll to zoom</span>
+        </div>
+
+        <!-- Slide-out Node Inspector -->
+        <aside class="inspector-drawer" id="inspectorDrawer">
+            <div class="inspector-header">
+                <div>
+                    <span class="inspector-badge" id="inspectorBadge">Node Inspector</span>
+                    <h3 class="inspector-title" id="inspectorTitle">Select a Node</h3>
+                </div>
+                <button class="inspector-close-btn" id="btnCloseInspector" title="Close Drawer (Esc)">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="inspector-body">
+                <div>
+                    <h4 class="inspector-section-title">Verified Entity Attributes</h4>
+                    <table class="properties-table">
+                        <tbody id="inspectorPropertiesBody">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div>
+                    <h4 class="inspector-section-title">Connected Subgraph Relationships (<span id="neighborCount">0</span>)</h4>
+                    <div class="neighbor-list" id="inspectorNeighborsList">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="inspector-footer">
+                <button class="btn-ai-inquire" id="btnAskAiAboutNode">
+                    <span>🤖 Ask AI Assistant About Node</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="spinner"></div>
+            <span id="loadingText">Retrieving Knowledge Graph topology...</span>
+        </div>
+    </main>
+
+    <script>
+        /**
+         * Standalone Knowledge Graph Database Explorer Engine
+         * Implements force-directed layout simulation and interactive graph inspection.
+         */
+        const canvas = document.getElementById("graphCanvas");
+        const ctx = canvas.getContext("2d");
+        const loadingOverlay = document.getElementById("loadingOverlay");
+        const loadingText = document.getElementById("loadingText");
+        const statText = document.getElementById("statText");
+        const companySelect = document.getElementById("companySelect");
+        const nodeSearchInput = document.getElementById("nodeSearchInput");
+        const searchResults = document.getElementById("searchResults");
+        const inspectorDrawer = document.getElementById("inspectorDrawer");
+        const btnCloseInspector = document.getElementById("btnCloseInspector");
+
+        // Color mapping
+        const TYPE_COLORS = {
+            company: "#f59e0b",
+            annual_report: "#06b6d4",
+            concall: "#a855f7",
+            document: "#06b6d4",
+            metric: "#10b981",
+            risk: "#f43f5e",
+            guidance: "#6366f1"
+        };
+
+        // Graph State
+        let rawNodes = [];
+        let rawEdges = [];
+        let simulationNodes = [];
+        let simulationEdges = [];
+        let activeFilters = new Set(["all", "company", "annual_report", "concall", "metric", "risk", "guidance"]);
+        let selectedNode = null;
+        let hoveredNode = null;
+        let isPhysicsRunning = true;
+
+        // Camera State
+        let camera = { x: 0, y: 0, zoom: 1.0 };
+        let isPanning = false;
+        let panStart = { x: 0, y: 0 };
+        let draggedNode = null;
+
+        // Resize Canvas
+        function resizeCanvas() {
+            const dpr = window.devicePixelRatio || 1;
+            const w = canvas.parentElement.clientWidth;
+            const h = canvas.parentElement.clientHeight;
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            canvas.style.width = w + "px";
+            canvas.style.height = h + "px";
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.scale(dpr, dpr);
+        }
+        window.addEventListener("resize", resizeCanvas);
+        resizeCanvas();
+
+        // Screen to World Coords
+        function screenToWorld(sx, sy) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = sx - rect.left;
+            const mouseY = sy - rect.top;
+            const w = rect.width;
+            const h = rect.height;
+            const worldX = (mouseX - w / 2 - camera.x) / camera.zoom + w / 2;
+            const worldY = (mouseY - h / 2 - camera.y) / camera.zoom + h / 2;
+            return { x: worldX, y: worldY };
+        }
+
+        // Fetch Knowledge Graph Data
+        async function fetchGraphData(companyId = "") {
+            loadingOverlay.style.display = "flex";
+            loadingOverlay.style.opacity = "1";
+            try {
+                const url = companyId ? `/api/graph/${companyId}?format=json` : "/api/graph?format=json";
+                const res = await fetch(url, { headers: { "Accept": "application/json" } });
+                if (!res.ok) throw new Error("Failed to load Knowledge Graph");
+                const data = await res.json();
+
+                rawNodes = data.nodes || [];
+                rawEdges = data.edges || [];
+
+                statText.textContent = `${rawNodes.length} Nodes • ${rawEdges.length} Edges`;
+
+                // Update company dropdown if not already populated
+                if (companySelect.options.length <= 1) {
+                    const companies = rawNodes.filter(n => n.type === "company");
+                    companies.forEach(c => {
+                        const opt = document.createElement("option");
+                        opt.value = c.properties.company_id;
+                        opt.textContent = `${c.label} (${c.properties.name || ""})`;
+                        companySelect.appendChild(opt);
+                    });
+                }
+
+                initializeSimulation();
+                loadingOverlay.style.opacity = "0";
+                setTimeout(() => loadingOverlay.style.display = "none", 300);
+
+            } catch (err) {
+                console.error("Graph fetch error:", err);
+                loadingText.textContent = "Error loading Knowledge Graph. Verify server is running.";
+            }
+        }
+
+        let simAlpha = 1.0;
+        let isRenderLoopRunning = false;
+
+        function wakeRenderLoop(newAlpha) {
+            if (newAlpha !== undefined) {
+                simAlpha = Math.max(simAlpha, newAlpha);
+            }
+            if (!isRenderLoopRunning) {
+                isRenderLoopRunning = true;
+                requestAnimationFrame(renderGraph);
+            }
+        }
+
+        // Initialize Force Simulation with Constellation Clustering
+        function initializeSimulation() {
+            const w = canvas.parentElement.clientWidth || 1000;
+            const h = canvas.parentElement.clientHeight || 700;
+            const centerX = w / 2;
+            const centerY = h / 2;
+
+            const existingMap = new Map(simulationNodes.map(n => [n.id, { x: n.x, y: n.y, vx: n.vx, vy: n.vy }]));
+
+            // Build node map and company cluster map
+            const rawNodeMap = new Map(rawNodes.map(n => [n.id, n]));
+            const companyNodes = rawNodes.filter(n => n.type === "company");
+            const docToComp = new Map();
+
+            // Link docs to companies
+            rawEdges.forEach(e => {
+                const src = rawNodeMap.get(e.source);
+                const tgt = rawNodeMap.get(e.target);
+                if (src && tgt) {
+                    if (src.type === "company" && tgt.type === "document") docToComp.set(tgt.id, src.id);
+                    if (tgt.type === "company" && src.type === "document") docToComp.set(src.id, tgt.id);
+                }
+            });
+
+            // Map all entities to their company
+            const entityToComp = new Map();
+            rawEdges.forEach(e => {
+                const src = rawNodeMap.get(e.source);
+                const tgt = rawNodeMap.get(e.target);
+                if (src && tgt) {
+                    if (docToComp.has(src.id)) entityToComp.set(tgt.id, docToComp.get(src.id));
+                    if (docToComp.has(tgt.id)) entityToComp.set(src.id, docToComp.get(tgt.id));
+                }
+            });
+
+            // Anchor positions for companies spaced comfortably
+            const compPositions = new Map();
+            const numCompanies = Math.max(companyNodes.length, 1);
+            const compOrbitRadius = numCompanies > 1 ? 260 : 0;
+            companyNodes.forEach((c, idx) => {
+                const angle = (idx / numCompanies) * Math.PI * 2 - Math.PI / 2;
+                compPositions.set(c.id, {
+                    x: centerX + Math.cos(angle) * compOrbitRadius,
+                    y: centerY + Math.sin(angle) * compOrbitRadius
+                });
+            });
+
+            simulationNodes = rawNodes.map((n, idx) => {
+                const existing = existingMap.get(n.id);
+                let initX, initY;
+
+                if (existing && !isNaN(existing.x) && !isNaN(existing.y) && Math.abs(existing.x - centerX) < 1800) {
+                    initX = existing.x;
+                    initY = existing.y;
+                } else if (n.type === "company") {
+                    const pos = compPositions.get(n.id) || { x: centerX, y: centerY };
+                    initX = pos.x;
+                    initY = pos.y;
+                } else if (n.type === "document") {
+                    const compId = docToComp.get(n.id);
+                    const anchor = compId && compPositions.has(compId) ? compPositions.get(compId) : { x: centerX, y: centerY };
+                    const angle = (idx * 2.399) * Math.PI * 2;
+                    const r = 85 + (idx % 3) * 20;
+                    initX = anchor.x + Math.cos(angle) * r;
+                    initY = anchor.y + Math.sin(angle) * r;
+                } else {
+                    // Metric, risk, guidance
+                    const compId = entityToComp.get(n.id);
+                    const anchor = compId && compPositions.has(compId) ? compPositions.get(compId) : { x: centerX, y: centerY };
+                    const angle = (idx * 1.618) * Math.PI * 2;
+                    const r = 140 + (idx % 4) * 35;
+                    initX = anchor.x + Math.cos(angle) * r;
+                    initY = anchor.y + Math.sin(angle) * r;
+                }
+
+                let specificType = n.type;
+                if (n.type === "document") {
+                    specificType = (n.label || "").toLowerCase().includes("concall") ? "concall" : "annual_report";
+                }
+
+                return {
+                    ...n,
+                    specificType,
+                    x: initX,
+                    y: initY,
+                    vx: 0,
+                    vy: 0,
+                    radius: n.type === "company" ? 26 : (n.type === "document" ? 20 : (n.type === "guidance" ? 14 : 17)),
+                    color: TYPE_COLORS[specificType] || n.color || "#06b6d4"
+                };
+            });
+
+            const nodeMap = new Map(simulationNodes.map(n => [n.id, n]));
+            simulationEdges = rawEdges.map(e => ({
+                ...e,
+                sourceNode: nodeMap.get(e.source),
+                targetNode: nodeMap.get(e.target)
+            })).filter(e => e.sourceNode && e.targetNode);
+
+            simAlpha = 1.0;
+            centerCamera();
+            wakeRenderLoop(1.0);
+        }
+
+        // Center and Fit Camera
+        function centerCamera() {
+            if (simulationNodes.length === 0) return;
+            const w = canvas.parentElement.clientWidth || 1000;
+            const h = canvas.parentElement.clientHeight || 700;
+
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            simulationNodes.forEach(n => {
+                if (!isNaN(n.x) && !isNaN(n.y)) {
+                    if (n.x < minX) minX = n.x;
+                    if (n.x > maxX) maxX = n.x;
+                    if (n.y < minY) minY = n.y;
+                    if (n.y > maxY) maxY = n.y;
+                }
+            });
+
+            if (minX === Infinity) return;
+
+            const graphW = Math.max(maxX - minX + 140, 500);
+            const graphH = Math.max(maxY - minY + 140, 500);
+            const zoomX = (w * 0.88) / graphW;
+            const zoomY = (h * 0.88) / graphH;
+            const fitZoom = Math.min(Math.max(Math.min(zoomX, zoomY), 0.45), 1.15);
+
+            const graphCenterX = (minX + maxX) / 2;
+            const graphCenterY = (minY + maxY) / 2;
+
+            camera = {
+                x: (w / 2 - graphCenterX) * fitZoom,
+                y: (h / 2 - graphCenterY) * fitZoom,
+                zoom: fitZoom
+            };
+        }
+
+        // Physics Simulation Step
+        function updatePhysics() {
+            if (!isPhysicsRunning) return;
+            const w = canvas.parentElement.clientWidth || 1000;
+            const h = canvas.parentElement.clientHeight || 700;
+            const centerX = w / 2;
+            const centerY = h / 2;
+
+            if (simAlpha > 0.005) {
+                simAlpha *= 0.993;
+            }
+
+            // 1. Center gravity
+            for (const n of simulationNodes) {
+                if (n === draggedNode) continue;
+                const dx = centerX - n.x;
+                const dy = centerY - n.y;
+                n.vx += dx * 0.0018 * simAlpha;
+                n.vy += dy * 0.0018 * simAlpha;
+            }
+
+            // 2. Node Repulsion
+            for (let i = 0; i < simulationNodes.length; i++) {
+                const n1 = simulationNodes[i];
+                for (let j = i + 1; j < simulationNodes.length; j++) {
+                    const n2 = simulationNodes[j];
+                    const dx = n2.x - n1.x;
+                    const dy = n2.y - n1.y;
+                    const distSq = dx * dx + dy * dy;
+                    const dist = Math.sqrt(distSq) || 1;
+
+                    if (dist < 220) {
+                        const safeDist = Math.max(dist, 25);
+                        const minDist = n1.radius + n2.radius + 20;
+                        const force = Math.min((minDist * 35) / (safeDist * safeDist), 4.5) * simAlpha;
+                        const fx = (dx / dist) * force;
+                        const fy = (dy / dist) * force;
+
+                        if (n1 !== draggedNode) { n1.vx -= fx; n1.vy -= fy; }
+                        if (n2 !== draggedNode) { n2.vx += fx; n2.vy += fy; }
+                    }
+                }
+            }
+
+            // 3. Edge Springs
+            for (const e of simulationEdges) {
+                const n1 = e.sourceNode;
+                const n2 = e.targetNode;
+                const dx = n2.x - n1.x;
+                const dy = n2.y - n1.y;
+                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                const targetDist = (n1.type === "company" || n2.type === "company") ? 90 : 60;
+                const springForce = Math.max(-6, Math.min(6, (dist - targetDist) * 0.04)) * simAlpha;
+
+                const fx = (dx / dist) * springForce;
+                const fy = (dy / dist) * springForce;
+
+                if (n1 !== draggedNode) { n1.vx += fx; n1.vy += fy; }
+                if (n2 !== draggedNode) { n2.vx += fx; n2.vy += fy; }
+            }
+
+            // 4. Integrate Velocities with Damping & Soft Boundary
+            const maxRadius = Math.max(w, h) * 0.9;
+            for (const n of simulationNodes) {
+                if (n === draggedNode) continue;
+                n.vx = Math.max(-8, Math.min(8, n.vx * 0.82));
+                n.vy = Math.max(-8, Math.min(8, n.vy * 0.82));
+                n.x += n.vx;
+                n.y += n.vy;
+
+                // Soft radial bound
+                const dCenter = Math.hypot(n.x - centerX, n.y - centerY);
+                if (dCenter > maxRadius) {
+                    const ratio = maxRadius / dCenter;
+                    n.x = centerX + (n.x - centerX) * ratio;
+                    n.y = centerY + (n.y - centerY) * ratio;
+                    n.vx *= 0.5;
+                    n.vy *= 0.5;
+                }
+            }
+        }
+
+        // Render Loop
+        function renderGraph() {
+            updatePhysics();
+
+            const w = canvas.parentElement.clientWidth;
+            const h = canvas.parentElement.clientHeight;
+
+            ctx.clearRect(0, 0, w, h);
+
+            // Draw Background Grid
+            ctx.save();
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.02)";
+            ctx.lineWidth = 1;
+            const gridSize = 40 * camera.zoom;
+            const offsetX = (camera.x + w / 2) % gridSize;
+            const offsetY = (camera.y + h / 2) % gridSize;
+
+            for (let x = offsetX; x < w; x += gridSize) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+            }
+            for (let y = offsetY; y < h; y += gridSize) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+            }
+            ctx.restore();
+
+            // World Transformation
+            ctx.save();
+            ctx.translate(w / 2 + camera.x, h / 2 + camera.y);
+            ctx.scale(camera.zoom, camera.zoom);
+            ctx.translate(-w / 2, -h / 2);
+
+            const activeNode = selectedNode || hoveredNode;
+            const isVisible = (n) => activeFilters.has("all") || activeFilters.has(n.specificType);
+
+            // 1. Draw Edges
+            for (const edge of simulationEdges) {
+                const n1 = edge.sourceNode;
+                const n2 = edge.targetNode;
+                if (!isVisible(n1) || !isVisible(n2)) continue;
+
+                const isConnected = activeNode && (edge.source === activeNode.id || edge.target === activeNode.id);
+                const isDimmed = activeNode && !isConnected;
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(n1.x, n1.y);
+                ctx.lineTo(n2.x, n2.y);
+
+                if (isConnected) {
+                    ctx.strokeStyle = "#38bdf8";
+                    ctx.lineWidth = 2.5;
+                    ctx.shadowColor = "#06b6d4";
+                    ctx.shadowBlur = 8;
+                } else if (isDimmed) {
+                    ctx.strokeStyle = "rgba(255, 255, 255, 0.04)";
+                    ctx.lineWidth = 1;
+                } else {
+                    ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+                    ctx.lineWidth = 1.2;
+                }
+                ctx.stroke();
+                ctx.restore();
+
+                // Draw Relationship Label
+                if (isConnected || camera.zoom > 0.95) {
+                    const midX = (n1.x + n2.x) / 2;
+                    const midY = (n1.y + n2.y) / 2;
+                    ctx.font = "9px Inter, sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+
+                    const text = edge.label || "";
+                    const textW = ctx.measureText(text).width;
+                    ctx.fillStyle = "rgba(6, 9, 17, 0.88)";
+                    ctx.fillRect(midX - textW / 2 - 4, midY - 6, textW + 8, 12);
+                    ctx.fillStyle = isConnected ? "#38bdf8" : "rgba(148, 163, 184, 0.75)";
+                    ctx.fillText(text, midX, midY);
+                }
+            }
+
+            // 2. Draw Nodes
+            for (const node of simulationNodes) {
+                if (!isVisible(node)) continue;
+
+                const isSelected = selectedNode && selectedNode.id === node.id;
+                const isHovered = hoveredNode && hoveredNode.id === node.id;
+                const isConnected = activeNode && (activeNode.id === node.id || simulationEdges.some(e => 
+                    (e.source === activeNode.id && e.target === node.id) || 
+                    (e.target === activeNode.id && e.source === node.id)
+                ));
+                const isDimmed = activeNode && !isConnected;
+
+                ctx.save();
+                if (isDimmed) {
+                    ctx.globalAlpha = 0.25;
+                }
+
+                // Outer Halo Corona
+                if (isSelected || isHovered) {
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, node.radius + 9, 0, Math.PI * 2);
+                    ctx.fillStyle = node.color + "33";
+                    ctx.fill();
+                }
+
+                // Node Circle
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+                ctx.fillStyle = node.color;
+                ctx.shadowColor = node.color;
+                ctx.shadowBlur = isSelected ? 20 : (isHovered ? 14 : 6);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                ctx.lineWidth = isSelected ? 3 : 2;
+                ctx.strokeStyle = "#ffffff";
+                ctx.stroke();
+
+                // Label Pill
+                ctx.font = "bold 11px Inter, sans-serif";
+                ctx.textAlign = "center";
+                const label = node.label || "";
+                const textW = ctx.measureText(label).width;
+                const pillY = node.y + node.radius + 6;
+
+                ctx.fillStyle = "rgba(6, 9, 17, 0.9)";
+                ctx.fillRect(node.x - textW / 2 - 6, pillY, textW + 12, 16);
+                ctx.strokeStyle = isSelected ? node.color : "rgba(255, 255, 255, 0.12)";
+                ctx.lineWidth = 1;
+                ctx.strokeRect(node.x - textW / 2 - 6, pillY, textW + 12, 16);
+
+                ctx.fillStyle = isSelected ? "#ffffff" : "#f1f5f9";
+                ctx.fillText(label, node.x, pillY + 12);
+
+                ctx.restore();
+            }
+
+            ctx.restore();
+
+            // Auto-sleep physics and rendering when settled to guarantee 0.0% background CPU
+            if (simAlpha <= 0.005 && !draggedNode && !isPanning) {
+                isRenderLoopRunning = false;
+                return;
+            }
+            requestAnimationFrame(renderGraph);
+        }
+
+        // Node Hit Test
+        function findNodeAt(worldX, worldY) {
+            for (let i = simulationNodes.length - 1; i >= 0; i--) {
+                const n = simulationNodes[i];
+                if (!activeFilters.has("all") && !activeFilters.has(n.specificType)) continue;
+                const dx = n.x - worldX;
+                const dy = n.y - worldY;
+                if (Math.sqrt(dx * dx + dy * dy) <= n.radius + 6) {
+                    return n;
+                }
+            }
+            return null;
+        }
+
+        // Inspect Node in Drawer
+        function inspectNode(node) {
+            selectedNode = node;
+            wakeRenderLoop();
+            if (!node) {
+                inspectorDrawer.classList.remove("open");
+                return;
+            }
+
+            inspectorDrawer.classList.add("open");
+            const badge = document.getElementById("inspectorBadge");
+            const title = document.getElementById("inspectorTitle");
+            const propsBody = document.getElementById("inspectorPropertiesBody");
+            const neighborsList = document.getElementById("inspectorNeighborsList");
+            const neighborCount = document.getElementById("neighborCount");
+
+            badge.textContent = (node.specificType || node.type).toUpperCase().replace("_", " ");
+            badge.style.color = node.color;
+            badge.style.borderColor = node.color;
+            badge.style.backgroundColor = node.color + "22";
+
+            title.textContent = node.label;
+
+            // Render Properties
+            const props = node.properties || {};
+            propsBody.innerHTML = Object.entries(props).map(([k, v]) => `
+                <tr>
+                    <td class="prop-key">${k.replace(/_/g, " ")}:</td>
+                    <td class="prop-val">${formatPropertyValue(k, v)}</td>
+                </tr>
+            `).join("") || `<tr><td colspan="2" style="color:var(--text-dim);padding:8px 0;">No extra properties.</td></tr>`;
+
+            // Find Neighbors
+            const connectedEdges = simulationEdges.filter(e => e.source === node.id || e.target === node.id);
+            neighborCount.textContent = connectedEdges.length;
+
+            neighborsList.innerHTML = connectedEdges.map(e => {
+                const neighbor = e.source === node.id ? e.targetNode : e.sourceNode;
+                const direction = e.source === node.id ? "➔" : "←";
+                return `
+                    <div class="neighbor-item" onclick="zoomToNode('${neighbor.id}')">
+                        <span class="neighbor-label">${neighbor.label}</span>
+                        <span class="neighbor-rel">${direction} ${e.label}</span>
+                    </div>
+                `;
+            }).join("") || `<p style="color:var(--text-dim);font-size:0.8rem;">No connected relationships found.</p>`;
+        }
+
+        function formatPropertyValue(key, val) {
+            if (val === null || val === undefined) return "—";
+            if (typeof val === "number") {
+                if (key.includes("revenue") || key.includes("profit")) {
+                    return val >= 1e9 ? `₹${(val / 1e7).toLocaleString()} Cr` : val.toLocaleString();
+                }
+                if (key.includes("margin")) {
+                    return `${(val * 100).toFixed(1)}%`;
+                }
+                return val.toLocaleString();
+            }
+            if (typeof val === "string" && val.startsWith("http")) {
+                return `<a href="${val}" target="_blank" style="color:var(--accent-cyan);">${val}</a>`;
+            }
+            return String(val);
+        }
+
+        // Fly Camera to Node
+        window.zoomToNode = function(nodeId) {
+            const node = simulationNodes.find(n => n.id === nodeId);
+            if (!node) return;
+            inspectNode(node);
+
+            const w = canvas.parentElement.clientWidth;
+            const h = canvas.parentElement.clientHeight;
+
+            camera.x = -(node.x - w / 2) * 1.5;
+            camera.y = -(node.y - h / 2) * 1.5;
+            camera.zoom = 1.5;
+            wakeRenderLoop();
+        };
+
+        // Event Listeners: Mouse & Touch
+        canvas.addEventListener("mousedown", (e) => {
+            if (e.button !== 0) return;
+            const worldPos = screenToWorld(e.clientX, e.clientY);
+            const clicked = findNodeAt(worldPos.x, worldPos.y);
+            if (clicked) {
+                draggedNode = clicked;
+                inspectNode(clicked);
+                wakeRenderLoop(0.4);
+            } else {
+                isPanning = true;
+                panStart = { x: e.clientX - camera.x, y: e.clientY - camera.y };
+                wakeRenderLoop();
+            }
+        });
+
+        canvas.addEventListener("mousemove", (e) => {
+            if (draggedNode || isPanning) return;
+            const worldPos = screenToWorld(e.clientX, e.clientY);
+            const prevHovered = hoveredNode;
+            hoveredNode = findNodeAt(worldPos.x, worldPos.y);
+            canvas.style.cursor = hoveredNode ? "pointer" : "grab";
+            if (hoveredNode !== prevHovered) {
+                wakeRenderLoop();
+            }
+        });
+
+        canvas.addEventListener("mouseleave", () => {
+            if (hoveredNode) {
+                hoveredNode = null;
+                wakeRenderLoop();
+            }
+        });
+
+        window.addEventListener("mousemove", (e) => {
+            if (draggedNode) {
+                const worldPos = screenToWorld(e.clientX, e.clientY);
+                draggedNode.x = worldPos.x;
+                draggedNode.y = worldPos.y;
+                draggedNode.vx = 0;
+                draggedNode.vy = 0;
+                wakeRenderLoop(0.1);
+                return;
+            }
+
+            if (isPanning) {
+                camera.x = e.clientX - panStart.x;
+                camera.y = e.clientY - panStart.y;
+                wakeRenderLoop();
+                return;
+            }
+        });
+
+        window.addEventListener("mouseup", () => {
+            draggedNode = null;
+            isPanning = false;
+        });
+
+        canvas.addEventListener("wheel", (e) => {
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.15 : 0.85;
+            camera.zoom = Math.min(Math.max(camera.zoom * factor, 0.25), 3.0);
+            wakeRenderLoop();
+        }, { passive: false });
+
+        // Touch handlers for mobile/tablet
+        canvas.addEventListener("touchstart", (e) => {
+            if (e.touches.length === 1) {
+                const t = e.touches[0];
+                const worldPos = screenToWorld(t.clientX, t.clientY);
+                const clicked = findNodeAt(worldPos.x, worldPos.y);
+                if (clicked) {
+                    draggedNode = clicked;
+                    inspectNode(clicked);
+                    wakeRenderLoop(0.4);
+                } else {
+                    isPanning = true;
+                    panStart = { x: t.clientX - camera.x, y: t.clientY - camera.y };
+                    wakeRenderLoop();
+                }
+            }
+        }, { passive: true });
+
+        window.addEventListener("touchmove", (e) => {
+            if (e.touches.length === 1) {
+                const t = e.touches[0];
+                if (draggedNode) {
+                    const worldPos = screenToWorld(t.clientX, t.clientY);
+                    draggedNode.x = worldPos.x;
+                    draggedNode.y = worldPos.y;
+                    wakeRenderLoop(0.1);
+                } else if (isPanning) {
+                    camera.x = t.clientX - panStart.x;
+                    camera.y = t.clientY - panStart.y;
+                    wakeRenderLoop();
+                }
+            }
+        }, { passive: true });
+
+        window.addEventListener("touchend", () => {
+            draggedNode = null;
+            isPanning = false;
+        });
+
+        // HUD Controls
+        document.getElementById("btnZoomIn").addEventListener("click", () => {
+            camera.zoom = Math.min(camera.zoom * 1.25, 3.0);
+            wakeRenderLoop();
+        });
+
+        document.getElementById("btnZoomOut").addEventListener("click", () => {
+            camera.zoom = Math.max(camera.zoom / 1.25, 0.25);
+            wakeRenderLoop();
+        });
+
+        document.getElementById("btnCenter").addEventListener("click", () => {
+            centerCamera();
+            wakeRenderLoop();
+        });
+
+        document.getElementById("btnTogglePhysics").addEventListener("click", () => {
+            isPhysicsRunning = !isPhysicsRunning;
+            const icon = document.getElementById("physicsIcon");
+            icon.innerHTML = isPhysicsRunning 
+                ? `<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>`
+                : `<polygon points="5 3 19 12 5 21 5 3"></polygon>`;
+            if (isPhysicsRunning) wakeRenderLoop(0.5);
+        });
+
+        btnCloseInspector.addEventListener("click", () => inspectNode(null));
+
+        // Company filter dropdown
+        companySelect.addEventListener("change", (e) => {
+            fetchGraphData(e.target.value);
+        });
+
+        // Entity filter chips
+        document.querySelectorAll(".filter-chip").forEach(chip => {
+            chip.addEventListener("click", () => {
+                const type = chip.dataset.type;
+                if (type === "all") {
+                    const makeActive = !chip.classList.contains("active");
+                    document.querySelectorAll(".filter-chip").forEach(c => c.classList.toggle("active", makeActive));
+                    if (makeActive) {
+                        activeFilters = new Set(["all", "company", "annual_report", "concall", "metric", "risk", "guidance"]);
+                    } else {
+                        activeFilters.clear();
+                    }
+                } else {
+                    chip.classList.toggle("active");
+                    if (chip.classList.contains("active")) {
+                        activeFilters.add(type);
+                    } else {
+                        activeFilters.delete(type);
+                        document.querySelector('.filter-chip[data-type="all"]').classList.remove("active");
+                    }
+                }
+                wakeRenderLoop();
+            });
+        });
+
+        // Search Input
+        nodeSearchInput.addEventListener("input", (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            if (!query) {
+                searchResults.style.display = "none";
+                return;
+            }
+
+            const matches = simulationNodes.filter(n => 
+                (n.label && n.label.toLowerCase().includes(query)) ||
+                (n.properties && n.properties.name && n.properties.name.toLowerCase().includes(query))
+            ).slice(0, 8);
+
+            if (matches.length > 0) {
+                searchResults.innerHTML = matches.map(m => `
+                    <div class="search-result-item" onclick="zoomToNode('${m.id}'); document.getElementById('searchResults').style.display='none';">
+                        <span>${m.label}</span>
+                        <span style="color:${m.color};font-size:0.7rem;text-transform:uppercase;">${m.specificType}</span>
+                    </div>
+                `).join("");
+                searchResults.style.display = "block";
+            } else {
+                searchResults.innerHTML = `<div style="padding:8px 12px;color:var(--text-dim);font-size:0.8rem;">No matching nodes</div>`;
+                searchResults.style.display = "block";
+            }
+        });
+
+        // Close search on outside click
+        window.addEventListener("click", (e) => {
+            if (!e.target.closest(".search-container")) {
+                searchResults.style.display = "none";
+            }
+        });
+
+        // Ask AI Button in Inspector
+        document.getElementById("btnAskAiAboutNode").addEventListener("click", () => {
+            if (!selectedNode) return;
+            const query = `Explain the ${selectedNode.specificType} "${selectedNode.label}" and its financial implications from the verified Knowledge Graph.`;
+            window.location.href = `/?q=${encodeURIComponent(query)}#tab-ai-chat`;
+        });
+
+        // Keyboard Shortcuts
+        window.addEventListener("keydown", (e) => {
+            if (e.target.tagName === "INPUT") return;
+            if (e.key === " ") {
+                e.preventDefault();
+                document.getElementById("btnTogglePhysics").click();
+            } else if (e.key.toLowerCase() === "f") {
+                centerCamera();
+                wakeRenderLoop();
+            } else if (e.key === "Escape") {
+                inspectNode(null);
+            }
+        });
+
+        // Initial Data Fetch
+        fetchGraphData();
+    </script>
+</body>
+</html>
