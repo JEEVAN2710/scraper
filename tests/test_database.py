@@ -18,6 +18,11 @@ def test_parse_sql_statements():
     with open(schema_path, "r", encoding="utf-8") as f:
         sql = f.read()
 
+    v2_path = schema_path.parent / "schema_v2.sql"
+    if v2_path.exists():
+        with open(v2_path, "r", encoding="utf-8") as f:
+            sql += "\n" + f.read()
+
     statements = parse_sql_statements(sql)
     assert len(statements) >= 7, f"Expected at least 7 statements (DB + tables), got {len(statements)}"
 

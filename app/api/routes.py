@@ -13,6 +13,7 @@ import mysql.connector
 from app.api.models import (
     AskRequest,
     AskResponse,
+    AutomationRunResponse,
     CompanyDetailResponse,
     CompanySummary,
     DocumentItem,
@@ -26,11 +27,24 @@ from app.api.models import (
 )
 from app.config.settings import get_settings
 from app.database.connection import get_db_manager
-from app.database.repositories import ChunkRepository, CompanyRepository, DocumentRepository
-from app.export.excel_exporter import generate_company_csv, generate_company_excel
+from app.database.repositories import (
+    ChunkRepository,
+    CompanyRepository,
+    DocumentRepository,
+    OperationalMetricRepository,
+)
+from app.export.excel_exporter import (
+    generate_company_csv,
+    generate_company_excel,
+    generate_sector_master_excel,
+    generate_operational_matrix_excel,
+)
+from app.pipeline.automation_service import AutomationService
 from app.pipeline.graph_rag import GraphRAGEngine
 from app.pipeline.graphify import Graphifier, get_knowledge_graph as get_kg_instance
 from app.pipeline.ingestion_pipeline import IngestionPipeline
+from app.extraction.transcript_analyzer import TranscriptAnalyzer
+from app.extraction.operational_kpi_extractor import OperationalKPIExtractor
 from app.scraper.screener_scraper import ScreenerScraper
 
 logger = logging.getLogger(__name__)
@@ -41,7 +55,15 @@ db_manager = get_db_manager(settings)
 graph_rag = GraphRAGEngine(db_manager)
 scraper = ScreenerScraper(settings)
 ingestion_pipeline = IngestionPipeline(db_manager, settings)
+automation_service = AutomationService(db_manager, settings)
 chunk_repo = ChunkRepository(db_manager)
+company_repo = CompanyRepository(db_manager)
+document_repo = DocumentRepository(db_manager)
+transcript_analyzer = TranscriptAnalyzer(db_manager, settings)
+op_repo = OperationalMetricRepository(db_manager)
+op_extractor = OperationalKPIExtractor(db_manager)
+
+DELETED_DEMO_IDS: set = set()
 
 # ==============================================================================
 # In-Memory Fallback Demo Data (Used when MySQL is unseeded or pending login)
@@ -347,6 +369,52 @@ def _get_company_from_db(company_id: int) -> Optional[Dict[str, Any]]:
                 except Exception:
                     ratios = {}
 
+            # Quarterly Data from operational_metrics (Financials + Operational KPIs)
+            quarterly_data = []
+            try:
+                cursor.execute(
+                    "SELECT period, metric_name, numeric_value FROM operational_metrics WHERE company_id = %s;",
+                    (company_id,),
+                )
+                op_rows = cursor.fetchall()
+                if op_rows:
+                    q_map: Dict[str, Dict[str, Any]] = {}
+                    for r in op_rows:
+                        p = r["period"]
+                        if p not in q_map:
+                            q_map[p] = {"period": p}
+                        m_name = r["metric_name"]
+                        n_val = float(r["numeric_value"]) if r["numeric_value"] is not None else None
+                        q_map[p][m_name] = n_val
+                        clean_key = (
+                            m_name.lower()
+                            .replace(" ", "_")
+                            .replace("-", "_")
+                            .replace("(", "")
+                            .replace(")", "")
+                            .replace("%", "pct")
+                            .replace("₹", "")
+                            .replace("cr", "")
+                            .strip("_")
+                        )
+                        q_map[p][clean_key] = n_val
+
+                        # Core P&L mapping
+                        if m_name in ("Revenue from Ops", "Total Revenue", "Sales"):
+                            q_map[p]["revenue"] = n_val * 1e7 if (n_val and n_val < 1e6) else n_val
+                        elif m_name in ("Operating EBITDA", "EBITDA", "Operating Profit"):
+                            q_map[p]["operating_profit"] = n_val * 1e7 if (n_val and n_val < 1e6) else n_val
+                        elif "Margin" in m_name or "opm" in clean_key:
+                            q_map[p]["operating_margin"] = (n_val / 100.0) if (n_val and n_val > 1.0) else n_val
+                        elif "PAT" in m_name or m_name == "Net Profit":
+                            q_map[p]["net_profit"] = n_val * 1e7 if (n_val and n_val < 1e6) else n_val
+
+                    from app.database.repositories import sort_fiscal_periods
+                    sorted_q_keys = sort_fiscal_periods(list(q_map.keys()))
+                    quarterly_data = [q_map[k] for k in sorted_q_keys]
+            except Exception as q_err:
+                logger.debug("Could not load quarterly operational metrics: %s", q_err)
+
             return {
                 "id": company["id"],
                 "name": company["name"],
@@ -357,8 +425,8 @@ def _get_company_from_db(company_id: int) -> Optional[Dict[str, Any]]:
                 "ratios": ratios,
                 "pros": [],
                 "cons": [],
-                "quarterly_data": [],
-                "currency": fin_data[0].get("currency", "USD") if fin_data else "USD",
+                "quarterly_data": quarterly_data,
+                "currency": fin_data[0].get("currency", "INR") if fin_data else "INR",
                 "latest_period": latest_p,
                 "financial_data": fin_data,
                 "risks": risks,
@@ -390,6 +458,8 @@ def get_health() -> HealthResponse:
             environment=settings.ENVIRONMENT,
             mysql=db_health,
             ollama={
+                "enabled": settings.llm_enabled,
+                "provider": settings.LLM_PROVIDER,
                 "base_url": settings.OLLAMA_BASE_URL,
                 "target_model": settings.OLLAMA_MODEL,
             },
@@ -404,105 +474,50 @@ def get_health() -> HealthResponse:
 def list_companies() -> List[CompanySummary]:
     """List all tracked companies with high-level financial summary cards."""
     try:
-        # 1. Try MySQL first
-        try:
-            with db_manager.get_cursor() as (cursor, _):
-                cursor.execute("SELECT * FROM companies ORDER BY name ASC;")
-                rows = cursor.fetchall()
-                if rows:
-                    summaries = []
-                    seen_tickers = set()
-                    for row in rows:
-                        cid = row["id"]
-                        ticker = (row.get("ticker") or "").upper()
-                        if ticker:
-                            seen_tickers.add(ticker)
-                        cursor.execute("SELECT COUNT(*) as cnt FROM documents WHERE company_id = %s;", (cid,))
-                        cnt_res = cursor.fetchone()
-                        doc_count = cnt_res["cnt"] if cnt_res else 0
+        with db_manager.get_cursor() as (cursor, _):
+            cursor.execute("SELECT * FROM companies ORDER BY name ASC;")
+            rows = cursor.fetchall()
+            summaries = []
+            for row in rows:
+                cid = row["id"]
+                ticker = (row.get("ticker") or "").upper()
+                cursor.execute("SELECT COUNT(*) as cnt FROM documents WHERE company_id = %s;", (cid,))
+                cnt_res = cursor.fetchone()
+                doc_count = cnt_res["cnt"] if cnt_res else 0
 
-                        cursor.execute(
-                            "SELECT period, revenue, net_profit, revenue_growth, currency "
-                            "FROM financial_data WHERE company_id = %s ORDER BY period DESC LIMIT 1;",
-                            (cid,),
-                        )
-                        latest = cursor.fetchone()
-
-                        summaries.append(
-                            CompanySummary(
-                                id=cid,
-                                name=row["name"],
-                                ticker=row.get("ticker"),
-                                website=row.get("website"),
-                                document_count=doc_count,
-                                latest_period=latest["period"] if latest else None,
-                                latest_revenue=float(latest["revenue"]) if latest and latest.get("revenue") else None,
-                                latest_net_profit=float(latest["net_profit"]) if latest and latest.get("net_profit") else None,
-                                latest_revenue_growth=float(latest["revenue_growth"]) if latest and latest.get("revenue_growth") else None,
-                                currency=latest.get("currency", "USD") if latest else "USD",
-                            )
-                        )
-
-                    # Merge baseline demo companies if not already present in DB
-                    for c in DEMO_COMPANIES:
-                        if c.get("ticker", "").upper() not in seen_tickers:
-                            latest_d = c["financial_data"][-1] if c.get("financial_data") else {}
-                            summaries.append(
-                                CompanySummary(
-                                    id=c["id"],
-                                    name=c["name"],
-                                    ticker=c.get("ticker"),
-                                    website=c.get("website"),
-                                    document_count=len(c.get("documents", [])),
-                                    latest_period=c.get("latest_period"),
-                                    latest_revenue=latest_d.get("revenue"),
-                                    latest_net_profit=latest_d.get("net_profit"),
-                                    latest_revenue_growth=latest_d.get("revenue_growth"),
-                                    currency=c.get("currency", "USD"),
-                                )
-                            )
-                    return summaries
-        except Exception as db_exc:
-            logger.warning("Database query failed during list_companies, falling back to demo records: %s", db_exc)
-
-        # 2. Fallback to Demo Companies
-        summaries = []
-        for c in DEMO_COMPANIES:
-            latest = c["financial_data"][-1] if c.get("financial_data") else {}
-            summaries.append(
-                CompanySummary(
-                    id=c["id"],
-                    name=c["name"],
-                    ticker=c.get("ticker"),
-                    website=c.get("website"),
-                    document_count=len(c.get("documents", [])),
-                    latest_period=c.get("latest_period"),
-                    latest_revenue=latest.get("revenue"),
-                    latest_net_profit=latest.get("net_profit"),
-                    latest_revenue_growth=latest.get("revenue_growth"),
-                    currency=c.get("currency", "USD"),
+                cursor.execute(
+                    "SELECT period, revenue, net_profit, revenue_growth, currency "
+                    "FROM financial_data WHERE company_id = %s ORDER BY period DESC LIMIT 1;",
+                    (cid,),
                 )
-            )
-        return summaries
+                latest = cursor.fetchone()
+
+                summaries.append(
+                    CompanySummary(
+                        id=cid,
+                        name=row["name"],
+                        ticker=row.get("ticker"),
+                        website=row.get("website"),
+                        document_count=doc_count,
+                        latest_period=latest["period"] if latest else None,
+                        latest_revenue=float(latest["revenue"]) if latest and latest.get("revenue") else None,
+                        latest_net_profit=float(latest["net_profit"]) if latest and latest.get("net_profit") else None,
+                        latest_revenue_growth=float(latest["revenue_growth"]) if latest and latest.get("revenue_growth") else None,
+                        currency=latest.get("currency", "INR") if latest else "INR",
+                    )
+                )
+
+            return summaries
     except Exception as exc:
-        logger.exception("Failed to retrieve company list: %s", exc)
-        raise HTTPException(status_code=500, detail="Unable to retrieve company list.")
+        logger.warning("Database query failed during list_companies: %s", exc)
+        return []
 
 
 @router.get("/companies/{company_id}", response_model=CompanyDetailResponse)
 def get_company_detail(company_id: int) -> CompanyDetailResponse:
     """Retrieve full company details, financial metrics, risks, and documents."""
     try:
-        # 1. Try MySQL
         data = _get_company_from_db(company_id)
-
-        # 2. Fallback to demo items
-        if not data:
-            for c in DEMO_COMPANIES:
-                if c["id"] == company_id:
-                    data = c
-                    break
-
         if not data:
             logger.warning("Company detail requested for non-existent ID: %s", company_id)
             raise HTTPException(status_code=404, detail=f"Company with ID {company_id} not found.")
@@ -518,7 +533,7 @@ def get_company_detail(company_id: int) -> CompanyDetailResponse:
             pros=data.get("pros", []),
             cons=data.get("cons", []),
             quarterly_data=data.get("quarterly_data", []),
-            currency=data.get("currency", "USD"),
+            currency=data.get("currency", "INR"),
             latest_period=data.get("latest_period"),
             financial_data=[FinancialDataPoint(**m) for m in data.get("financial_data", [])],
             risks=[RiskFactorItem(**r) for r in data.get("risks", [])],
@@ -531,33 +546,124 @@ def get_company_detail(company_id: int) -> CompanyDetailResponse:
         raise HTTPException(status_code=500, detail=f"Failed to fetch company details for ID {company_id}")
 
 
+@router.delete("/companies/{company_id}")
+def delete_company(company_id: int):
+    """Delete a company and all associated filings, chunks, risks, and local PDF files."""
+    try:
+        logger.info("Received request to delete company ID %s...", company_id)
+        db_company = company_repo.get_by_id(company_id)
+        if not db_company:
+            raise HTTPException(status_code=404, detail=f"Company with ID {company_id} not found.")
+
+        company_repo.delete(company_id, delete_files=True)
+        try:
+            graphifier = Graphifier(db_manager, get_kg_instance(settings), settings)
+            graphifier.graphify_from_db()
+        except Exception as g_err:
+            logger.debug("Graph sync after delete: %s", g_err)
+
+        return {
+            "success": True,
+            "message": f"Company {company_id} and all related records deleted successfully.",
+            "company_id": company_id,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Error deleting company %s: %s", company_id, exc)
+        raise HTTPException(status_code=500, detail=f"Failed to delete company: {exc}")
+
+@router.post("/companies/clear-all")
+def clear_all_companies():
+    """Wipe ALL company data from database and delete all downloaded PDFs. Use for fresh testing."""
+    try:
+        logger.warning("CLEAR-ALL: Truncating all company data from database...")
+        tables_to_clear = [
+            "operational_metrics",
+            "financial_data",
+            "risk_factors",
+            "document_chunks",
+            "documents",
+            "company_sources",
+            "processing_logs",
+            "extraction_runs",
+            "automation_runs",
+            "companies",
+        ]
+        with db_manager.get_cursor() as (cursor, _):
+            cursor.execute("SET FOREIGN_KEY_CHECKS=0;")
+            for table in tables_to_clear:
+                cursor.execute(f"TRUNCATE TABLE {table};")
+            cursor.execute("SET FOREIGN_KEY_CHECKS=1;")
+
+        # Delete all downloaded PDF files
+        downloads_dir = settings.DOWNLOAD_DIR
+        deleted_files = 0
+        if downloads_dir.exists():
+            for pdf_file in downloads_dir.glob("*.pdf"):
+                try:
+                    pdf_file.unlink()
+                    deleted_files += 1
+                except Exception as fe:
+                    logger.warning("Could not delete file %s: %s", pdf_file, fe)
+
+        # Clear the in-memory demo deletion tracking
+        DELETED_DEMO_IDS.clear()
+
+        # Refresh graph
+        try:
+            graphifier = Graphifier(db_manager, get_kg_instance(settings), settings)
+            graphifier.graphify_from_db()
+        except Exception as g_err:
+            logger.debug("Graph sync after clear-all: %s", g_err)
+
+        msg = f"Successfully wiped all company data. Deleted {deleted_files} downloaded PDF files."
+        logger.info("CLEAR-ALL: %s", msg)
+        return {"success": True, "message": msg, "deleted_files": deleted_files}
+    except Exception as exc:
+        logger.exception("CLEAR-ALL failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Clear-all failed: {exc}")
+
+
+@router.post("/companies/{company_id}/rescrape", response_model=IngestionResponse)
+def rescrape_company(company_id: int) -> IngestionResponse:
+    """Purge existing company data and freshly scrape the latest filings and concalls from Screener."""
+    try:
+        logger.info("Re-scraping clean company ID %s...", company_id)
+        ticker = None
+        name = None
+
+        db_company = company_repo.get_by_id(company_id)
+        if not db_company:
+            raise HTTPException(status_code=404, detail=f"Company with ID {company_id} not found to rescrape.")
+
+        query = db_company.get("ticker") or db_company.get("name")
+        company_repo.delete(company_id, delete_files=True)
+
+        logger.info("Executing clean re-scrape ingestion for '%s'...", query)
+        res = ingestion_pipeline.run_screener_ingestion(query)
+        return IngestionResponse(**res)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Error during re-scrape of company %s: %s", company_id, exc)
+        raise HTTPException(status_code=500, detail=f"Re-scrape failed: {exc}")
+
+
 @router.get("/documents", response_model=List[DocumentItem])
 def list_documents(company_id: Optional[int] = Query(None)) -> List[DocumentItem]:
     """List documents with file hashes and processing status."""
     try:
-        docs: List[DocumentItem] = []
-        # 1. Try MySQL
-        try:
-            with db_manager.get_cursor() as (cursor, _):
-                if company_id:
-                    cursor.execute("SELECT * FROM documents WHERE company_id = %s ORDER BY downloaded_at DESC;", (company_id,))
-                else:
-                    cursor.execute("SELECT * FROM documents ORDER BY downloaded_at DESC;")
-                rows = cursor.fetchall()
-                if rows:
-                    return [DocumentItem(**r) for r in rows]
-        except Exception as db_exc:
-            logger.warning("Database query failed in list_documents: %s", db_exc)
-
-        # 2. Fallback to demo documents
-        for c in DEMO_COMPANIES:
-            if company_id is None or c["id"] == company_id:
-                for d in c.get("documents", []):
-                    docs.append(DocumentItem(**d))
-        return docs
+        with db_manager.get_cursor() as (cursor, _):
+            if company_id:
+                cursor.execute("SELECT * FROM documents WHERE company_id = %s ORDER BY downloaded_at DESC;", (company_id,))
+            else:
+                cursor.execute("SELECT * FROM documents ORDER BY downloaded_at DESC;")
+            rows = cursor.fetchall()
+            return [DocumentItem(**r) for r in rows] if rows else []
     except Exception as exc:
-        logger.exception("Error listing documents (company_id=%s): %s", company_id, exc)
-        raise HTTPException(status_code=500, detail="Failed to list documents.")
+        logger.warning("Database query failed in list_documents: %s", exc)
+        return []
 
 
 @router.get("/graph/{company_id}")
@@ -637,23 +743,12 @@ def download_document(document_id: int):
     """Download the actual PDF report file."""
     try:
         doc_match = None
-        # Check MySQL first
         try:
             with db_manager.get_cursor() as (cursor, _):
                 cursor.execute("SELECT * FROM documents WHERE id = %s;", (document_id,))
                 doc_match = cursor.fetchone()
         except Exception as db_exc:
             logger.warning("Database lookup failed for document_id %s: %s", document_id, db_exc)
-
-        # Fallback to demo list
-        if not doc_match:
-            for c in DEMO_COMPANIES:
-                for d in c.get("documents", []):
-                    if d["id"] == document_id:
-                        doc_match = d
-                        break
-                if doc_match:
-                    break
 
         if not doc_match:
             logger.warning("Download requested for non-existent document ID: %s", document_id)
@@ -684,45 +779,48 @@ def download_document(document_id: int):
 
 
 @router.get("/export/excel/{company_id}")
-def export_excel(company_id: int):
-    """Generate and stream a multi-sheet formatted Excel workbook (.xlsx) with all PDF-extracted data."""
+def export_excel(
+    company_id: int,
+    template: str = Query("auto", description="Template format: auto (detects domain), coworking, or adaptive"),
+    include_auxiliary_sheets: bool = Query(False, description="Include auxiliary sheets (Overview, Risks, Docs, Chunks). Default False."),
+):
+    """Generate and stream a cleanly formatted Excel workbook (.xlsx) with primary KPI matrix."""
     try:
         data = _get_company_from_db(company_id)
-        if not data:
-            for c in DEMO_COMPANIES:
-                if c["id"] == company_id:
-                    data = c
-                    break
-
         if not data:
             logger.warning("Excel export requested for unknown company_id: %s", company_id)
             raise HTTPException(status_code=404, detail="Company not found.")
 
-        # Pull document chunks (PDF-extracted text) from database
+        # Pull document chunks (PDF-extracted text) from database if auxiliary sheets requested
         pdf_chunks = []
-        try:
-            docs = data.get("documents", [])
-            for doc in docs:
-                doc_id = doc.get("id") if isinstance(doc, dict) else getattr(doc, "id", None)
-                if doc_id:
-                    chunks = chunk_repo.list_by_document(doc_id)
-                    for ch in chunks:
-                        pdf_chunks.append({
-                            "document_id": doc_id,
-                            "chunk_index": ch.get("chunk_index", 0),
-                            "page_start": ch.get("page_start", 1),
-                            "page_end": ch.get("page_end", 1),
-                            "content": ch.get("content", ""),
-                        })
-        except Exception as chunk_err:
-            logger.warning("Could not fetch PDF chunks for Excel export: %s", chunk_err)
+        if include_auxiliary_sheets:
+            try:
+                docs = data.get("documents", [])
+                for doc in docs:
+                    doc_id = doc.get("id") if isinstance(doc, dict) else getattr(doc, "id", None)
+                    if doc_id:
+                        chunks = chunk_repo.list_by_document(doc_id)
+                        for ch in chunks:
+                            pdf_chunks.append({
+                                "document_id": doc_id,
+                                "chunk_index": ch.get("chunk_index", 0),
+                                "page_start": ch.get("page_start", 1),
+                                "page_end": ch.get("page_end", 1),
+                                "content": ch.get("content", ""),
+                            })
+            except Exception as chunk_err:
+                logger.warning("Could not fetch PDF chunks for Excel export: %s", chunk_err)
 
         data["pdf_chunks"] = pdf_chunks
 
-        excel_buffer = generate_company_excel(data)
+        excel_buffer = generate_company_excel(
+            data,
+            template=template,
+            include_auxiliary_sheets=include_auxiliary_sheets,
+        )
         filename = f"{data.get('ticker', 'company')}_{datetime.now().strftime('%Y%m%d')}_financial_report.xlsx"
 
-        logger.info("Successfully generated Excel report for company_id %s ('%s') with %d PDF chunks", company_id, filename, len(pdf_chunks))
+        logger.info("Successfully generated Excel report for company_id %s ('%s') with %d PDF chunks (template=%s)", company_id, filename, len(pdf_chunks), template)
         return StreamingResponse(
             excel_buffer,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -735,17 +833,47 @@ def export_excel(company_id: int):
         raise HTTPException(status_code=500, detail=f"Excel generation error: {exc}")
 
 
+@router.get("/export/sector-excel")
+def export_sector_excel(
+    template: str = Query("auto", description="Template format: auto (detects domain), coworking, or adaptive"),
+):
+    """Generate and stream the Sector Review MASTER workbook (.xlsx)."""
+    try:
+        companies = []
+        try:
+            with db_manager.get_cursor() as (cursor, _):
+                cursor.execute("SELECT id FROM companies ORDER BY name ASC;")
+                rows = cursor.fetchall()
+                for r in rows:
+                    c_data = _get_company_from_db(r["id"])
+                    if c_data:
+                        companies.append(c_data)
+        except Exception as db_err:
+            logger.warning("Could not fetch companies from DB for sector export: %s", db_err)
+
+        if not companies:
+            raise HTTPException(status_code=404, detail="No companies found in database for sector export.")
+
+        excel_buffer = generate_sector_master_excel(companies, template=template)
+        filename = f"Sector_Review_Master_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        logger.info("Successfully generated sector master Excel report ('%s') for %d companies (template=%s)", filename, len(companies), template)
+        return StreamingResponse(
+            excel_buffer,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to generate sector master Excel: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Sector Excel generation error: {exc}")
+
+
 @router.get("/export/csv/{company_id}")
 def export_csv(company_id: int):
     """Generate and stream financial metrics in standard CSV format."""
     try:
         data = _get_company_from_db(company_id)
-        if not data:
-            for c in DEMO_COMPANIES:
-                if c["id"] == company_id:
-                    data = c
-                    break
-
         if not data:
             logger.warning("CSV export requested for unknown company_id: %s", company_id)
             raise HTTPException(status_code=404, detail="Company not found.")
@@ -764,6 +892,79 @@ def export_csv(company_id: int):
     except Exception as exc:
         logger.exception("Failed to generate CSV export for company_id %s: %s", company_id, exc)
         raise HTTPException(status_code=500, detail=f"CSV export error: {exc}")
+
+
+@router.get("/companies/{company_id}/operational-matrix")
+def get_company_operational_matrix(company_id: int):
+    """Fetch multi-quarter operational metrics research matrix for a company."""
+    try:
+        db_comp = company_repo.get_by_id(company_id)
+        if not db_comp:
+            raise HTTPException(status_code=404, detail="Company not found")
+        matrix = op_repo.get_matrix(company_id)
+        return {"status": "success", "data": matrix}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to get operational matrix for company %s: %s", company_id, exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/sectors/{sector_name}/operational-matrix")
+def get_sector_operational_matrix(sector_name: str):
+    """Fetch stacked multi-quarter operational model matrices for all companies in sector."""
+    try:
+        sec = None if sector_name.lower() in ["all", "sector", "coworking"] else sector_name
+        matrix = op_repo.get_sector_matrix(sec)
+        return {"status": "success", "data": matrix}
+    except Exception as exc:
+        logger.exception("Failed to get sector matrix for %s: %s", sector_name, exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/export/excel/operational-matrix/{company_id}")
+def export_company_operational_matrix_excel(company_id: int):
+    """Download company multi-quarter operational matrix as formatted Excel."""
+    try:
+        matrix = op_repo.get_matrix(company_id)
+        if not matrix:
+            raise HTTPException(status_code=404, detail="Company matrix data not found")
+
+        excel_buffer = generate_operational_matrix_excel(matrix)
+        ticker = matrix.get("ticker") or f"Company_{company_id}"
+        filename = f"{ticker}_Operational_Model_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        return StreamingResponse(
+            excel_buffer,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to export operational matrix Excel for company %s: %s", company_id, exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/export/excel/sector-matrix/{sector_name}")
+def export_sector_operational_matrix_excel(sector_name: str):
+    """Download sector comparative multi-quarter operational model as formatted Excel."""
+    try:
+        sec = None if sector_name.lower() in ["all", "sector", "coworking"] else sector_name
+        matrix = op_repo.get_sector_matrix(sec)
+        excel_buffer = generate_operational_matrix_excel(matrix)
+        clean_sec = (sector_name or "Sector").replace(" ", "_")
+        filename = f"{clean_sec}_Operational_Model_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        return StreamingResponse(
+            excel_buffer,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to export sector operational matrix Excel: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
 
 
 @router.post("/ask", response_model=AskResponse)
@@ -787,12 +988,26 @@ def ask_question(request: AskRequest) -> AskResponse:
 
 @router.post("/scrape/search", response_model=List[ScreenerSearchResult])
 def search_screener(request: ScreenerSearchRequest) -> List[ScreenerSearchResult]:
-    """Search for companies on Screener.in by query or ticker symbol."""
+    """Search for companies on Screener.in by query or ticker symbol (POST)."""
     try:
         results = scraper.search_company(request.query)
         return [ScreenerSearchResult(**r) for r in results]
     except Exception as exc:
         logger.exception("Error searching Screener: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Screener search failed: {exc}")
+
+
+@router.get("/scrape/search", response_model=List[ScreenerSearchResult])
+@router.get("/screener/search", response_model=List[ScreenerSearchResult])
+def search_screener_get(
+    q: str = Query(..., min_length=1, description="Company name or ticker query"),
+) -> List[ScreenerSearchResult]:
+    """Live search for companies on Screener.in by query or ticker symbol (GET)."""
+    try:
+        results = scraper.search_company(q)
+        return [ScreenerSearchResult(**r) for r in results]
+    except Exception as exc:
+        logger.exception("Error searching Screener via GET: %s", exc)
         raise HTTPException(status_code=500, detail=f"Screener search failed: {exc}")
 
 
@@ -822,4 +1037,242 @@ def reprocess_company(company_id: int):
     except Exception as exc:
         logger.exception("Error in /api/scrape/reprocess/%s: %s", company_id, exc)
         raise HTTPException(status_code=500, detail=f"Re-processing failed: {exc}")
+
+
+@router.post("/automations/{automation_id}/run", response_model=AutomationRunResponse)
+def run_automation_endpoint(automation_id: int) -> AutomationRunResponse:
+    """Manually trigger discovery, streaming acquisition, and SHA-256 deduplication for an automation."""
+    try:
+        logger.info("Manual trigger for automation ID %s...", automation_id)
+        result = automation_service.run_automation(automation_id=automation_id, trigger_type="manual")
+        return AutomationRunResponse(**result)
+    except ValueError as val_err:
+        raise HTTPException(status_code=404, detail=str(val_err))
+    except Exception as exc:
+        logger.exception("Failed to execute automation %s: %s", automation_id, exc)
+        raise HTTPException(status_code=500, detail=f"Automation execution failed: {exc}")
+
+
+@router.post("/documents/{document_id}/analyze")
+def analyze_document_transcript(
+    document_id: int,
+    model: Optional[str] = Query(None, description="Preferred Ollama model (e.g. phi3:mini or qwen2.5:3b)"),
+    refresh: bool = Query(False, description="Force re-analysis even if cached"),
+):
+    """Run local Ollama LLM (Phi-3 or Qwen) on an earnings concall transcript."""
+    try:
+        logger.info("Running transcript analysis for document ID %s (model=%s, refresh=%s)...", document_id, model, refresh)
+        result = transcript_analyzer.analyze_document(
+            document_id=document_id,
+            preferred_model=model,
+            force_refresh=refresh,
+        )
+        return result
+    except ValueError as val_err:
+        raise HTTPException(status_code=404, detail=str(val_err))
+    except Exception as exc:
+        logger.exception("Transcript analysis failed for document %s: %s", document_id, exc)
+        raise HTTPException(status_code=500, detail=f"Transcript analysis failed: {exc}")
+
+
+@router.get("/documents/{document_id}/analysis")
+def get_document_transcript_analysis(document_id: int):
+    """Retrieve existing or newly computed structured analysis for a concall transcript."""
+    try:
+        result = transcript_analyzer.analyze_document(document_id=document_id, force_refresh=False)
+        return result
+    except ValueError as val_err:
+        raise HTTPException(status_code=404, detail=str(val_err))
+    except Exception as exc:
+        logger.exception("Error fetching analysis for document %s: %s", document_id, exc)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch analysis: {exc}")
+
+
+@router.get("/sectors")
+def list_sectors():
+    """List all tracked business sectors with company counts and aggregate performance."""
+    try:
+        sectors_dict: Dict[str, Any] = {}
+        with db_manager.get_cursor() as (cursor, _):
+            cursor.execute("""
+                SELECT 
+                    c.id, c.name, c.ticker, c.sector, c.ratios_json,
+                    f.revenue, f.revenue_growth, f.operating_margin, f.net_profit, f.period
+                FROM companies c
+                LEFT JOIN financial_data f ON f.company_id = c.id
+                ORDER BY c.sector ASC, f.period DESC;
+            """)
+            rows = cursor.fetchall()
+
+            for r in rows:
+                s_name = r.get("sector") or "Unclassified"
+                if s_name not in sectors_dict:
+                    sectors_dict[s_name] = {
+                        "sector": s_name,
+                        "company_ids": set(),
+                        "companies": [],
+                        "growth_rates": [],
+                        "margins": [],
+                    }
+                cid = r["id"]
+                if cid not in sectors_dict[s_name]["company_ids"]:
+                    sectors_dict[s_name]["company_ids"].add(cid)
+                    sectors_dict[s_name]["companies"].append({
+                        "id": cid,
+                        "name": r["name"],
+                        "ticker": r.get("ticker"),
+                        "revenue": float(r["revenue"]) if r.get("revenue") else None,
+                        "revenue_growth": float(r["revenue_growth"]) if r.get("revenue_growth") else None,
+                        "operating_margin": float(r["operating_margin"]) if r.get("operating_margin") else None,
+                        "net_profit": float(r["net_profit"]) if r.get("net_profit") else None,
+                        "period": r.get("period"),
+                    })
+                    if r.get("revenue_growth") is not None:
+                        sectors_dict[s_name]["growth_rates"].append(float(r["revenue_growth"]))
+                    if r.get("operating_margin") is not None:
+                        sectors_dict[s_name]["margins"].append(float(r["operating_margin"]))
+
+        result = []
+        for s_name, s_data in sectors_dict.items():
+            g_list = s_data["growth_rates"]
+            m_list = s_data["margins"]
+            avg_g = round(sum(g_list) / len(g_list), 4) if g_list else None
+            avg_m = round(sum(m_list) / len(m_list), 4) if m_list else None
+            result.append({
+                "sector": s_name,
+                "company_count": len(s_data["companies"]),
+                "avg_revenue_growth": avg_g,
+                "avg_operating_margin": avg_m,
+                "companies": s_data["companies"],
+            })
+
+        return sorted(result, key=lambda x: x["company_count"], reverse=True)
+    except Exception as exc:
+        logger.exception("Error listing sectors: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch sectors: {exc}")
+
+
+@router.get("/sectors/{sector_name}/comparison")
+def compare_sector_peers(sector_name: str):
+    """Peer comparison for companies in a specific sector (growth, margins, valuation, guidance)."""
+    try:
+        import json
+        with db_manager.get_cursor() as (cursor, _):
+            cursor.execute(
+                "SELECT * FROM companies WHERE LOWER(sector) = LOWER(%s) ORDER BY name ASC;",
+                (sector_name.strip(),),
+            )
+            comps = cursor.fetchall()
+            if not comps:
+                cursor.execute(
+                    "SELECT * FROM companies WHERE LOWER(sector) LIKE LOWER(%s) ORDER BY name ASC;",
+                    (f"%{sector_name.strip()}%",),
+                )
+                comps = cursor.fetchall()
+
+            peers = []
+            for c in comps:
+                cid = c["id"]
+                cursor.execute(
+                    "SELECT * FROM financial_data WHERE company_id = %s ORDER BY period DESC LIMIT 1;",
+                    (cid,),
+                )
+                latest_fin = cursor.fetchone()
+
+                ratios = {}
+                if c.get("ratios_json"):
+                    try:
+                        ratios = json.loads(c["ratios_json"]) if isinstance(c["ratios_json"], str) else c["ratios_json"]
+                    except Exception:
+                        pass
+
+                peers.append({
+                    "id": cid,
+                    "name": c["name"],
+                    "ticker": c.get("ticker"),
+                    "sector": c.get("sector"),
+                    "market_cap": ratios.get("Market Cap", "—"),
+                    "current_price": ratios.get("Current Price", "—"),
+                    "pe_ratio": ratios.get("Stock P/E", "—"),
+                    "roce": ratios.get("ROCE", "—"),
+                    "roe": ratios.get("ROE", "—"),
+                    "latest_period": latest_fin["period"] if latest_fin else None,
+                    "revenue": float(latest_fin["revenue"]) if latest_fin and latest_fin.get("revenue") else None,
+                    "revenue_growth": float(latest_fin["revenue_growth"]) if latest_fin and latest_fin.get("revenue_growth") else None,
+                    "operating_margin": float(latest_fin["operating_margin"]) if latest_fin and latest_fin.get("operating_margin") else None,
+                    "net_profit": float(latest_fin["net_profit"]) if latest_fin and latest_fin.get("net_profit") else None,
+                })
+
+            return {
+                "sector": sector_name,
+                "peer_count": len(peers),
+                "peers": peers,
+            }
+    except Exception as exc:
+        logger.exception("Error in sector comparison for %s: %s", sector_name, exc)
+        raise HTTPException(status_code=500, detail=f"Sector comparison failed: {exc}")
+
+
+@router.post("/extract/kpis/{company_id}")
+def extract_company_kpis(company_id: int):
+    """Run pure Python (PyMuPDF) non-LLM operational KPI extraction on all filings for a company."""
+    try:
+        db_company = company_repo.get_by_id(company_id)
+        if not db_company:
+            raise HTTPException(status_code=404, detail=f"Company with ID {company_id} not found.")
+
+        # Find all documents for this company
+        docs = document_repo.get_by_company(company_id)
+        extracted_count = 0
+        processed_docs = 0
+
+        # Also check local files matching company ticker
+        ticker = db_company.get("ticker", "")
+        local_files = list(settings.DOWNLOAD_DIR.glob(f"{ticker}_*.pdf")) if ticker else []
+
+        # Process registered documents
+        for doc in docs:
+            local_path = doc.get("local_path")
+            if local_path:
+                pdf_p = Path(local_path)
+                if not pdf_p.is_absolute():
+                    pdf_p = Path.cwd() / pdf_p
+                if pdf_p.exists():
+                    res = op_extractor.extract_from_pdf(
+                        pdf_p,
+                        company_id=company_id,
+                        period_override=doc.get("report_period"),
+                        document_id=doc.get("id"),
+                    )
+                    extracted_count += len(res)
+                    processed_docs += 1
+
+        # Also process any unindexed local files
+        processed_names = {doc.get("file_name") for doc in docs}
+        for lf in local_files:
+            if lf.name not in processed_names:
+                res = op_extractor.extract_from_pdf(lf, company_id=company_id)
+                extracted_count += len(res)
+                processed_docs += 1
+
+        logger.info(
+            "Non-LLM KPI extraction completed for company %s: %d metrics from %d documents",
+            company_id,
+            extracted_count,
+            processed_docs,
+        )
+        return {
+            "success": True,
+            "company_id": company_id,
+            "documents_processed": processed_docs,
+            "metrics_extracted": extracted_count,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("KPI extraction failed for company %s: %s", company_id, exc)
+        raise HTTPException(status_code=500, detail=f"KPI extraction error: {exc}")
+
+
+
 

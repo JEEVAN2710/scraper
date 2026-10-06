@@ -147,3 +147,20 @@ class IngestionResponse(BaseModel):
     duration_seconds: float = 0.0
     error: Optional[str] = None
 
+
+class AutomationRunResponse(BaseModel):
+    """Response returned when an automation run is executed."""
+    run_id: int
+    automation_id: int
+    company_id: int
+    status: str
+    documents_discovered: int = 0
+    documents_downloaded: int = 0
+    duplicates: int = 0
+    documents_failed: int = 0
+    started_at: str
+    completed_at: str
+    message: str
+    error: Optional[str] = None
+
+

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -15,8 +16,10 @@ from app.database.repositories import (
     FinancialDataRepository,
     ProcessingLogRepository,
     RiskFactorRepository,
+    OperationalMetricRepository,
 )
 from app.extraction.pdf_extractor import PDFExtractor
+from app.extraction.operational_kpi_extractor import OperationalKPIExtractor
 from app.pipeline.graphify import Graphifier, get_knowledge_graph
 from app.scraper.screener_scraper import ScreenerScraper
 
@@ -44,6 +47,8 @@ class IngestionPipeline:
         self.risk_repo = RiskFactorRepository(self.db)
         self.chunk_repo = ChunkRepository(self.db)
         self.log_repo = ProcessingLogRepository(self.db)
+        self.op_repo = OperationalMetricRepository(self.db)
+        self.op_extractor = OperationalKPIExtractor(self.db)
 
     def run_screener_ingestion(self, query_or_ticker: str) -> Dict[str, Any]:
         """Execute complete scraping, downloading, extracting, and graph persistence pipeline."""
@@ -251,6 +256,127 @@ class IngestionPipeline:
                 self.fin_repo.create_batch(fin_batch)
                 stages_completed.append(f"Ingested {len(fin_batch)} Multi-Year Financial Statements")
 
+            # Ingest all quarterly P&L data as statutory metrics into operational_metrics
+            quarterly_items = []
+            for q in company_data.get("quarterly_data", []):
+                q_prd = q.get("period")
+                if not q_prd:
+                    continue
+                if q.get("sales_cr") is not None:
+                    quarterly_items.append({
+                        "period": q_prd,
+                        "metric_category": "Financials",
+                        "metric_name": "Revenue from Ops",
+                        "metric_value": f"₹{q['sales_cr']:.0f} Cr" if abs(q["sales_cr"]) >= 10 else f"₹{q['sales_cr']} Cr",
+                        "numeric_value": float(q["sales_cr"]),
+                        "unit": "₹ Cr",
+                        "document_id": doc_id,
+                    })
+                if q.get("expenses_cr") is not None:
+                    quarterly_items.append({
+                        "period": q_prd,
+                        "metric_category": "Financials",
+                        "metric_name": "Operating Expenses",
+                        "metric_value": f"₹{q['expenses_cr']:.0f} Cr" if abs(q["expenses_cr"]) >= 10 else f"₹{q['expenses_cr']} Cr",
+                        "numeric_value": float(q["expenses_cr"]),
+                        "unit": "₹ Cr",
+                        "document_id": doc_id,
+                    })
+                if q.get("operating_profit_cr") is not None:
+                    quarterly_items.append({
+                        "period": q_prd,
+                        "metric_category": "Financials",
+                        "metric_name": "Operating EBITDA",
+                        "metric_value": f"₹{q['operating_profit_cr']:.0f} Cr" if abs(q["operating_profit_cr"]) >= 10 else f"₹{q['operating_profit_cr']} Cr",
+                        "numeric_value": float(q["operating_profit_cr"]),
+                        "unit": "₹ Cr",
+                        "document_id": doc_id,
+                    })
+                if q.get("opm_pct") is not None:
+                    quarterly_items.append({
+                        "period": q_prd,
+                        "metric_category": "Financials",
+                        "metric_name": "Op. EBITDA Margin %",
+                        "metric_value": f"{q['opm_pct']:.1f}%",
+                        "numeric_value": float(q["opm_pct"]),
+                        "unit": "%",
+                        "document_id": doc_id,
+                    })
+                if q.get("other_income_cr") is not None:
+                    quarterly_items.append({
+                        "period": q_prd,
+                        "metric_category": "Financials",
+                        "metric_name": "Other Income",
+                        "metric_value": f"₹{q['other_income_cr']:.0f} Cr" if abs(q["other_income_cr"]) >= 10 else f"₹{q['other_income_cr']} Cr",
+                        "numeric_value": float(q["other_income_cr"]),
+                        "unit": "₹ Cr",
+                        "document_id": doc_id,
+                    })
+                if q.get("interest_cr") is not None:
+                    quarterly_items.append({
+                        "period": q_prd,
+                        "metric_category": "Financials",
+                        "metric_name": "Interest / Finance Costs",
+                        "metric_value": f"₹{q['interest_cr']:.0f} Cr" if abs(q["interest_cr"]) >= 10 else f"₹{q['interest_cr']} Cr",
+                        "numeric_value": float(q["interest_cr"]),
+                        "unit": "₹ Cr",
+                        "document_id": doc_id,
+                    })
+                if q.get("depreciation_cr") is not None:
+                    quarterly_items.append({
+                        "period": q_prd,
+                        "metric_category": "Financials",
+                        "metric_name": "Depreciation",
+                        "metric_value": f"₹{q['depreciation_cr']:.0f} Cr" if abs(q["depreciation_cr"]) >= 10 else f"₹{q['depreciation_cr']} Cr",
+                        "numeric_value": float(q["depreciation_cr"]),
+                        "unit": "₹ Cr",
+                        "document_id": doc_id,
+                    })
+                if q.get("pbt_cr") is not None:
+                    quarterly_items.append({
+                        "period": q_prd,
+                        "metric_category": "Financials",
+                        "metric_name": "Profit before tax (PBT)",
+                        "metric_value": f"₹{q['pbt_cr']:.0f} Cr" if abs(q["pbt_cr"]) >= 10 else f"₹{q['pbt_cr']} Cr",
+                        "numeric_value": float(q["pbt_cr"]),
+                        "unit": "₹ Cr",
+                        "document_id": doc_id,
+                    })
+                if q.get("tax_pct") is not None:
+                    quarterly_items.append({
+                        "period": q_prd,
+                        "metric_category": "Financials",
+                        "metric_name": "Effective Tax Rate %",
+                        "metric_value": f"{q['tax_pct']:.1f}%",
+                        "numeric_value": float(q["tax_pct"]),
+                        "unit": "%",
+                        "document_id": doc_id,
+                    })
+                if q.get("net_profit_cr") is not None:
+                    quarterly_items.append({
+                        "period": q_prd,
+                        "metric_category": "Financials",
+                        "metric_name": "Reported PAT",
+                        "metric_value": f"₹{q['net_profit_cr']:.0f} Cr",
+                        "numeric_value": float(q["net_profit_cr"]),
+                        "unit": "₹ Cr",
+                        "document_id": doc_id,
+                    })
+                if q.get("eps") is not None:
+                    quarterly_items.append({
+                        "period": q_prd,
+                        "metric_category": "Financials",
+                        "metric_name": "Diluted EPS",
+                        "metric_value": f"₹{q['eps']:.2f}",
+                        "numeric_value": float(q["eps"]),
+                        "unit": "₹",
+                        "document_id": doc_id,
+                    })
+
+            if quarterly_items:
+                self.op_repo.create_batch(company_id, quarterly_items)
+                stages_completed.append(f"Ingested {len(quarterly_items)} Quarterly Financial Metrics")
+
             # Update document status to processed
             self.document_repo.update_status(doc_id, status="processed", processed_at=datetime.now())
 
@@ -263,10 +389,10 @@ class IngestionPipeline:
             )
 
             # -------------------------------------------------------------
-            # Stage 7: Ingest Quarterly Concall Transcripts (Up to 4 Quarters)
+            # Stage 7: Ingest Quarterly Concall Transcripts (Up to 8 Quarters)
             # -------------------------------------------------------------
             concalls = company_data.get("concalls", [])
-            concalls_to_process = concalls[:4]
+            concalls_to_process = concalls[:8]
             concalls_ingested = 0
 
             for concall in concalls_to_process:
@@ -277,11 +403,26 @@ class IngestionPipeline:
 
                 try:
                     logger.info("Downloading concall transcript for %s (%s)...", ticker, c_period)
-                    c_pdf_path = self.scraper.download_pdf(
-                        pdf_url=c_url,
-                        ticker=ticker,
-                        report_title=f"Concall_{c_period.replace(' ', '_')}",
-                    )
+                    c_pdf_path = None
+                    clean_period_name = re.sub(r"[^\w\-]", "_", c_period).strip("_")
+                    try:
+                        c_pdf_path = self.scraper.download_pdf(
+                            pdf_url=c_url,
+                            ticker=ticker,
+                            report_title=f"Concall_{clean_period_name}",
+                        )
+                    except Exception as primary_err:
+                        fallback_url = concall.get("fallback_url")
+                        if fallback_url:
+                            logger.info("Primary concall download failed (%s). Retrying with fallback URL %s...", primary_err, fallback_url)
+                            c_pdf_path = self.scraper.download_pdf(
+                                pdf_url=fallback_url,
+                                ticker=ticker,
+                                report_title=f"Concall_{clean_period_name}",
+                            )
+                        else:
+                            raise primary_err
+
                     c_hash = self.extractor.compute_sha256(c_pdf_path)
 
                     existing_c_doc = self.document_repo.get_by_hash(c_hash)
@@ -338,6 +479,12 @@ class IngestionPipeline:
                     if c_risk_batch:
                         self.risk_repo.create_batch(c_risk_batch)
 
+                    # Extract operational KPIs organically from concall transcript
+                    try:
+                        self.op_extractor.extract_from_pdf(c_pdf_path, company_id=company_id, period_override=c_period, document_id=c_doc_id)
+                    except Exception as kpi_err:
+                        logger.warning("Could not extract operational KPIs from %s: %s", c_pdf_path.name, kpi_err)
+
                     self.document_repo.update_status(c_doc_id, status="processed", processed_at=datetime.now())
                     self.log_repo.log(
                         stage="concall_ingestion",
@@ -350,8 +497,45 @@ class IngestionPipeline:
                 except Exception as c_err:
                     logger.warning("Failed to process concall transcript for %s (%s): %s", ticker, c_period, c_err)
 
+                # Ingest Investor Presentation (PPT) for the quarter if available
+                ppt_url = concall.get("ppt_url")
+                if ppt_url:
+                    try:
+                        logger.info("Downloading investor presentation for %s (%s)...", ticker, c_period)
+                        clean_period_name = re.sub(r"[^\w\-]", "_", c_period).strip("_")
+                        ppt_pdf_path = self.scraper.download_pdf(
+                            pdf_url=ppt_url,
+                            ticker=ticker,
+                            report_title=f"PPT_{clean_period_name}",
+                        )
+                        ppt_hash = self.extractor.compute_sha256(ppt_pdf_path)
+                        existing_ppt_doc = self.document_repo.get_by_hash(ppt_hash)
+                        if not existing_ppt_doc:
+                            ppt_doc_id = self.document_repo.create(
+                                company_id=company_id,
+                                file_name=ppt_pdf_path.name,
+                                file_url=ppt_url,
+                                local_path=str(ppt_pdf_path.relative_to(Path.cwd()) if ppt_pdf_path.is_relative_to(Path.cwd()) else ppt_pdf_path),
+                                file_hash=ppt_hash,
+                                document_type="investor_presentation",
+                                report_period=c_period,
+                                processing_status="processed",
+                            )
+                        else:
+                            ppt_doc_id = existing_ppt_doc["id"]
+
+                        self.op_extractor.extract_from_pdf(
+                            ppt_pdf_path,
+                            company_id=company_id,
+                            period_override=c_period,
+                            document_id=ppt_doc_id,
+                        )
+                        logger.info("Ingested investor presentation %s", ppt_pdf_path.name)
+                    except Exception as ppt_err:
+                        logger.warning("Failed to process investor presentation for %s (%s): %s", ticker, c_period, ppt_err)
+
             if concalls_ingested > 0:
-                stages_completed.append(f"Ingested {concalls_ingested} Quarterly Concall Transcripts")
+                stages_completed.append(f"Ingested {concalls_ingested} Quarterly Concall Transcripts & Presentations")
 
             # -------------------------------------------------------------
             # Stage 8: Graphify Ingested Data & Refresh Knowledge Graph

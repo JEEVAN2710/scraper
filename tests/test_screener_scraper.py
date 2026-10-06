@@ -169,6 +169,7 @@ def test_screener_scraper_extended_fields():
 
     quarters = scraper._parse_quarterly_results(soup)
     assert len(quarters) == 2
-    assert quarters[-1]["period"] == "Mar 2024"
+    assert quarters[-1]["period"] == "Q4 FY24"
+    assert quarters[-1]["raw_period"] == "Mar 2024"
     assert quarters[-1]["revenue"] == 37923 * 1e7
 

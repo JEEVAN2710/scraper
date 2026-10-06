@@ -54,28 +54,139 @@ async function fetchHealth() {
         const data = await res.json();
 
         const dbPill = document.getElementById("dbStatusPill");
-        const dot = dbPill.querySelector(".status-dot");
-        const label = dbPill.querySelector(".status-label");
-
-        if (data.mysql && data.mysql.status === "healthy") {
-            dot.className = "status-dot healthy";
-            label.textContent = `MySQL: Connected (${data.mysql.server_version || "8.0"})`;
-        } else {
-            dot.className = "status-dot";
-            label.textContent = "MySQL: Standby (Demo Mode Active)";
+        if (dbPill) {
+            const dot = dbPill.querySelector(".status-dot");
+            const label = dbPill.querySelector(".status-label");
+            if (data.mysql && data.mysql.status === "healthy") {
+                if (dot) dot.className = "status-dot healthy";
+                if (label) label.textContent = `MySQL: Connected (${data.mysql.server_version || "8.0"})`;
+            } else {
+                if (dot) dot.className = "status-dot";
+                if (label) label.textContent = "MySQL: Standby (Demo Mode Active)";
+            }
         }
 
         const llmPill = document.getElementById("llmStatusPill");
-        if (data.ollama && data.ollama.target_model) {
-            llmPill.querySelector(".status-label").textContent = `LLM: ${data.ollama.target_model} (Local)`;
+        const ragBadge = document.getElementById("ragModelBadge");
+        if (data.ollama) {
+            const isEnabled = data.ollama.enabled !== false;
+            const modelName = data.ollama.target_model || "phi3:mini";
+            if (llmPill) {
+                const statusLabel = llmPill.querySelector(".status-label");
+                if (statusLabel) {
+                    statusLabel.textContent = isEnabled ? `LLM: ${modelName} (Local)` : "LLM: Disabled (Graph Mode)";
+                }
+            }
+            if (ragBadge) {
+                ragBadge.textContent = isEnabled ? `Ollama: ${modelName}` : "Direct Graph Mode (LLM OFF)";
+            }
         }
     } catch (err) {
         console.warn("Health check error:", err);
     }
 }
 
+// Clear All Dashboard Panels to a Clean Empty State
+function clearDashboard() {
+    selectedCompanyId = null;
+    currentCompanyDetail = null;
+
+    // Reset active highlights in sidebar
+    document.querySelectorAll(".company-item").forEach(el => el.classList.remove("active"));
+
+    // 1. Hero Card
+    const heroAvatar = document.getElementById("heroAvatar");
+    if (heroAvatar) heroAvatar.textContent = "CO";
+    const heroTicker = document.getElementById("heroTicker");
+    if (heroTicker) heroTicker.textContent = "—";
+    const heroName = document.getElementById("heroName");
+    if (heroName) heroName.textContent = "No Company Selected";
+    const websiteLink = document.getElementById("heroWebsite");
+    if (websiteLink) websiteLink.style.display = "none";
+    const sectorBadge = document.getElementById("heroSector");
+    if (sectorBadge) sectorBadge.style.display = "none";
+    const aboutBox = document.getElementById("heroAboutBox");
+    if (aboutBox) aboutBox.style.display = "none";
+    const ribbon = document.getElementById("keyRatiosRibbon");
+    if (ribbon) ribbon.style.display = "none";
+
+    const heroPeriod = document.getElementById("heroPeriod");
+    if (heroPeriod) heroPeriod.textContent = "—";
+    const heroCurrency = document.getElementById("heroCurrency");
+    if (heroCurrency) heroCurrency.textContent = "—";
+    const heroReportCount = document.getElementById("heroReportCount");
+    if (heroReportCount) heroReportCount.textContent = "0 Reports";
+    const statusArea = document.getElementById("heroStatusArea");
+    if (statusArea) { statusArea.innerHTML = ""; statusArea.style.display = "none"; }
+
+    // 2. KPIs
+    const kpiRevenue = document.getElementById("kpiRevenue");
+    if (kpiRevenue) kpiRevenue.textContent = "—";
+    const revGrowthEl = document.getElementById("kpiRevenueGrowth");
+    if (revGrowthEl) { revGrowthEl.textContent = ""; revGrowthEl.style.display = "none"; }
+
+    const kpiProfit = document.getElementById("kpiProfit");
+    if (kpiProfit) kpiProfit.textContent = "—";
+    const profitGrowthEl = document.getElementById("kpiProfitGrowth");
+    if (profitGrowthEl) { profitGrowthEl.textContent = ""; profitGrowthEl.style.display = "none"; }
+
+    const kpiMargin = document.getElementById("kpiMargin");
+    if (kpiMargin) kpiMargin.textContent = "—";
+    const opProfitEl = document.getElementById("kpiOperatingProfit");
+    if (opProfitEl) { opProfitEl.textContent = ""; opProfitEl.style.display = "none"; }
+
+    const kpiEps = document.getElementById("kpiEps");
+    if (kpiEps) kpiEps.textContent = "—";
+
+    // 3. Tab 1: Financial Statements Table
+    const finTbody = document.getElementById("financialTableBody");
+    if (finTbody) {
+        finTbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--text-dim); padding:3rem 1rem;">No company selected. Use "Scrape from Screener" or search above to begin.</td></tr>`;
+    }
+
+    // Quarterly Results Table
+    const qHeader = document.getElementById("quarterlySectionHeader");
+    const qContainer = document.getElementById("quarterlyTableContainer");
+    const qTbody = document.getElementById("quarterlyTableBody");
+    if (qHeader) qHeader.style.display = "none";
+    if (qContainer) qContainer.style.display = "none";
+    if (qTbody) qTbody.innerHTML = "";
+
+    // 4. Tab 2: Risks Grid
+    const risksGrid = document.getElementById("risksGrid");
+    if (risksGrid) {
+        risksGrid.innerHTML = `<div style="grid-column: 1/-1; text-align:center; color:var(--text-dim); padding:3rem 1rem;">No company selected.</div>`;
+    }
+
+    // 5. Tab 3: Documents Registry Table
+    const docsTbody = document.getElementById("documentsTableBody");
+    if (docsTbody) {
+        docsTbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-dim); padding:3rem 1rem;">No documents tracked.</td></tr>`;
+    }
+
+    // 6. Tab 4: Concall Transcripts Table
+    const concallsTbody = document.getElementById("concallsTableBody");
+    const concallBadge = document.getElementById("concallCountBadge");
+    if (concallBadge) concallBadge.textContent = "0 Transcripts";
+    if (concallsTbody) {
+        concallsTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-dim); padding:3rem 1rem;">No concall transcripts available.</td></tr>`;
+    }
+
+    // 7. Tab 5: Knowledge Graph
+    const kgContainer = document.getElementById("graphVisContainer");
+    if (kgContainer) {
+        kgContainer.innerHTML = `<div style="display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-dim);">No company selected for Knowledge Graph.</div>`;
+    }
+
+    // 8. Operational Model Matrix Table
+    const opBody = document.getElementById("opMatrixTableBody");
+    if (opBody) {
+        opBody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--text-dim); padding:3rem 1rem;">No company selected. Scrape a company to view operational metrics.</td></tr>`;
+    }
+}
+
 // Load Companies List
-async function loadCompanies() {
+async function loadCompanies(preferredCompanyId = null) {
     const companyListEl = document.getElementById("companyList");
     try {
         const res = await fetch("/api/companies");
@@ -83,23 +194,35 @@ async function loadCompanies() {
         allCompanies = await res.json();
 
         document.getElementById("companyCountBadge").textContent = `${allCompanies.length} Active`;
+
+        // If preferredCompanyId is supplied and exists, select it
+        if (preferredCompanyId && allCompanies.some(c => c.id === preferredCompanyId)) {
+            selectedCompanyId = preferredCompanyId;
+        } else if (!allCompanies.some(c => c.id === selectedCompanyId)) {
+            // Otherwise, keep current selection if valid, else pick first
+            selectedCompanyId = allCompanies.length > 0 ? allCompanies[0].id : null;
+        }
+
         renderCompanyList(allCompanies);
 
-        // Select first company by default
-        if (allCompanies.length > 0) {
-            selectCompany(allCompanies[0].id);
+        // Select company and load full dossier
+        if (selectedCompanyId) {
+            await selectCompany(selectedCompanyId);
+        } else {
+            clearDashboard();
         }
     } catch (err) {
         console.error("Failed loading companies:", err);
         companyListEl.innerHTML = `<div class="loading-state"><span>Failed loading companies. Verify backend server is running.</span></div>`;
+        clearDashboard();
     }
 }
 
 // Render Sidebar List
 function renderCompanyList(companies) {
     const companyListEl = document.getElementById("companyList");
-    if (!companies.length) {
-        companyListEl.innerHTML = `<div class="loading-state"><span>No matching companies found.</span></div>`;
+    if (!companies || !companies.length) {
+        companyListEl.innerHTML = `<div class="loading-state"><span>No companies. Scrape a company to begin.</span></div>`;
         return;
     }
 
@@ -113,6 +236,12 @@ function renderCompanyList(companies) {
                 <div class="ci-revenue">${c.latest_revenue ? formatCurrency(c.latest_revenue, c.currency) : 'N/A'}</div>
                 <div class="ci-period">${c.latest_period || ''}</div>
             </div>
+            <button class="ci-delete-btn" title="Delete ${c.name}" onclick="event.stopPropagation(); promptDeleteCompany(${c.id}, '${c.name.replace(/'/g, "\\'")}')">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+            </button>
         </div>
     `).join("");
 }
@@ -125,7 +254,7 @@ async function selectCompany(companyId) {
         closeMobileSidebar();
     }
 
-    // Update active highlight in sidebar
+    // Update active highlight in sidebar immediately
     document.querySelectorAll(".company-item").forEach(el => {
         el.classList.toggle("active", parseInt(el.dataset.id) === companyId);
     });
@@ -133,8 +262,15 @@ async function selectCompany(companyId) {
     try {
         const res = await fetch(`/api/companies/${companyId}`);
         if (!res.ok) throw new Error("Could not fetch company details");
-        currentCompanyDetail = await res.json();
+        const data = await res.json();
+        // Guard against race conditions: only update UI if this is still the selected company
+        if (selectedCompanyId !== companyId) return;
+        currentCompanyDetail = data;
         renderCompanyDetail(currentCompanyDetail);
+        const opTab = document.getElementById("tab-op-matrix");
+        if (opTab && opTab.classList.contains("active")) {
+            loadOperationalMatrix();
+        }
     } catch (err) {
         console.error("Error fetching company details:", err);
         showToast("Error loading company dossier", "info");
@@ -144,6 +280,11 @@ async function selectCompany(companyId) {
 // Render Main Dashboard Views
 function renderCompanyDetail(company) {
     // 1. Hero Card
+    const avatarEl = document.getElementById("heroAvatar");
+    if (avatarEl) {
+        const raw = (company.ticker || company.name || "CO").replace(/[^A-Za-z0-9]/g, "");
+        avatarEl.textContent = (raw.slice(0, 2) || "CO").toUpperCase();
+    }
     document.getElementById("heroTicker").textContent = company.ticker || "N/A";
     document.getElementById("heroName").textContent = company.name;
     const websiteLink = document.getElementById("heroWebsite");
@@ -381,9 +522,14 @@ function renderCompanyDetail(company) {
                     <td><span class="hash-badge" title="${d.file_hash}">${d.file_hash ? d.file_hash.substring(0, 16) + '...' : 'Verified'}</span></td>
                     <td><span class="status-badge-success">✓ ${(d.processing_status || 'processed').toUpperCase()}</span></td>
                     <td>
-                        <button class="btn btn-sm btn-outline" onclick="triggerPdfDownload(${d.id})">
-                            <span>Download PDF</span>
-                        </button>
+                        <div class="row-action-group">
+                            <button class="btn btn-sm btn-outline" onclick="triggerPdfDownload(${d.id})">
+                                <span>Download PDF</span>
+                            </button>
+                            <button class="btn btn-sm btn-accent" onclick="analyzeConcallTranscript(${d.id}, '${(d.report_period || 'Quarter').replace(/'/g, "\\'")}')" title="Analyze with local Microsoft Phi-3 or Qwen">
+                                <span>⚡ Analyze (LLM)</span>
+                            </button>
+                        </div>
                     </td>
                 </tr>
             `).join("");
@@ -417,9 +563,8 @@ async function reprocessCompany(companyId) {
 
         showToast(`Re-processed ${data.name || 'company'}: ${data.chunks_count} chunks, ${data.risks_count} risks extracted!`, "success");
 
-        // Refresh the company detail view
-        await loadCompanies();
-        await selectCompany(companyId);
+        // Refresh the company detail view and select it
+        await loadCompanies(companyId);
     } catch (err) {
         console.error("Re-processing error:", err);
         showToast(`Re-process failed: ${err.message}`, "info");
@@ -447,14 +592,260 @@ function triggerPdfDownload(docId = null) {
 
 function triggerExcelExport() {
     if (!selectedCompanyId) return;
-    showToast("Generating multi-sheet Excel report (.xlsx)...", "success");
-    window.location.href = `/api/export/excel/${selectedCompanyId}`;
+    const tmpl = document.getElementById("selectExcelTemplate")?.value || "auto";
+    showToast(`Generating Excel report [${tmpl}]...`, "success");
+    window.location.href = `/api/export/excel/${selectedCompanyId}?template=${encodeURIComponent(tmpl)}`;
 }
 
 function triggerCsvExport() {
     if (!selectedCompanyId) return;
     showToast("Exporting financial metrics CSV...", "success");
     window.location.href = `/api/export/csv/${selectedCompanyId}`;
+}
+
+// Company Delete & Re-scrape Controllers
+let pendingDeleteCompanyId = null;
+
+function promptDeleteCompany(companyId, companyName) {
+    pendingDeleteCompanyId = companyId;
+    const nameEl = document.getElementById("deleteCompanyTargetName");
+    if (nameEl) nameEl.textContent = companyName;
+    const modal = document.getElementById("deleteConfirmModal");
+    if (modal) modal.style.display = "flex";
+}
+
+function closeDeleteModal() {
+    pendingDeleteCompanyId = null;
+    const modal = document.getElementById("deleteConfirmModal");
+    if (modal) modal.style.display = "none";
+}
+
+async function executeDeleteCompany() {
+    if (!pendingDeleteCompanyId) return;
+    const cid = pendingDeleteCompanyId;
+    const btn = document.getElementById("btnConfirmDelete");
+    const spinner = document.getElementById("deleteSpinner");
+    const btnText = document.getElementById("btnConfirmDeleteText");
+
+    if (btn) btn.disabled = true;
+    if (spinner) spinner.style.display = "inline-block";
+    if (btnText) btnText.textContent = "Deleting...";
+
+    try {
+        const res = await fetch(`/api/companies/${cid}`, { method: "DELETE" });
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || "Failed to delete company");
+        }
+        showToast("Company and all associated records deleted successfully", "success");
+        closeDeleteModal();
+
+        await loadCompanies();
+
+        if (selectedCompanyId === cid || !allCompanies.some(c => c.id === selectedCompanyId)) {
+            if (allCompanies.length > 0) {
+                selectCompany(allCompanies[0].id);
+            } else {
+                clearDashboard();
+            }
+        }
+    } catch (err) {
+        console.error("Delete error:", err);
+        showToast(`Delete failed: ${err.message}`, "info");
+    } finally {
+        if (btn) btn.disabled = false;
+        if (spinner) spinner.style.display = "none";
+        if (btnText) btnText.textContent = "Yes, Delete Permanently";
+    }
+}
+
+async function promptRescrapeCompany(companyId, query) {
+    if (!confirm(`Re-scrape ${query}? This will purge existing cached data and fetch the latest reports, concall transcripts, and financials freshly from Screener.in.`)) {
+        return;
+    }
+
+    showToast(`Re-scraping ${query} freshly from Screener...`, "info");
+    const progressCard = document.getElementById("screenerLiveProgress");
+    const slpTitle = document.getElementById("slpTitle");
+    const slpSubtitle = document.getElementById("slpSubtitle");
+    const slpStages = document.getElementById("slpStages");
+
+    if (progressCard) {
+        progressCard.style.display = "block";
+        progressCard.style.opacity = "1";
+        if (slpTitle) slpTitle.textContent = `Re-scraping "${query}" from Screener.in...`;
+        if (slpSubtitle) slpSubtitle.textContent = "Purging old cache, fetching latest filings, concalls & rebuilding Knowledge Graph";
+        if (slpStages) {
+            slpStages.innerHTML = `
+                <div class="slp-stage-item active">
+                    <span class="slp-stage-icon">⏳</span>
+                    <span>Purging cached data & fetching latest filings...</span>
+                </div>
+            `;
+        }
+        progressCard.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    try {
+        const res = await fetch(`/api/companies/${companyId}/rescrape`, { method: "POST" });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || "Re-scrape request failed");
+        }
+        const data = await res.json();
+
+        if (slpStages) {
+            slpStages.innerHTML = (data.stages || []).map(s => `
+                <div class="slp-stage-item done">
+                    <span class="slp-stage-icon">✓</span>
+                    <span>${s}</span>
+                </div>
+            `).join("");
+        }
+
+        if (slpTitle) {
+            slpTitle.textContent = `✓ Successfully Re-scraped ${data.name || query}`;
+            slpSubtitle.textContent = `Completed in ${data.duration_seconds}s • Fresh data stored in Knowledge Graph`;
+        }
+
+        await loadCompanies(data.company_id);
+        showToast(`✓ Successfully re-scraped ${data.name || query}!`, "success");
+
+        setTimeout(() => {
+            if (progressCard) {
+                progressCard.style.transition = "opacity 0.3s ease";
+                progressCard.style.opacity = "0";
+                setTimeout(() => {
+                    progressCard.style.display = "none";
+                    progressCard.style.opacity = "1";
+                    const hero = document.getElementById("companyHero");
+                    if (hero) hero.scrollIntoView({ behavior: "smooth", block: "start" });
+                }, 300);
+            }
+        }, 1200);
+    } catch (err) {
+        console.error("Re-scrape error:", err);
+        showToast(`Re-scrape failed: ${err.message}`, "info");
+        if (progressCard) progressCard.style.display = "none";
+    }
+}
+
+// Local LLM Concall Transcript Analysis (Microsoft Phi-3 / Qwen)
+async function analyzeConcallTranscript(docId, period) {
+    const panel = document.getElementById("transcriptAnalysisPanel");
+    if (!panel) return;
+
+    panel.style.display = "block";
+    panel.scrollIntoView({ behavior: "smooth" });
+
+    document.getElementById("tacTitle").textContent = `Management Commentary & Transcript Analysis (${period})`;
+    document.getElementById("tacModelBadge").textContent = "Analyzing with Local LLM (Phi-3 / Qwen)...";
+    const tonePill = document.getElementById("tacTonePill");
+    tonePill.textContent = "Analyzing...";
+    tonePill.className = "tac-tone-pill";
+    document.getElementById("tacExecutiveSummary").textContent = "Extracting key executive remarks and management commentary from transcript...";
+    document.getElementById("tacGuidance").textContent = "Synthesizing forward-looking guidance and financial targets...";
+    document.getElementById("tacDevelopments").innerHTML = "<li>Reading business highlights from transcript...</li>";
+    document.getElementById("tacHeadwinds").innerHTML = "<li>Analyzing strategic headwinds & Q&A discussion...</li>";
+
+    try {
+        const res = await fetch(`/api/documents/${docId}/analyze`, { method: "POST" });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || "Analysis request failed");
+        }
+        const data = await res.json();
+        const a = data.analysis || {};
+
+        document.getElementById("tacModelBadge").textContent = `Model: ${data.model_used || "Local LLM"}`;
+        
+        const tone = a.management_tone || "Neutral";
+        tonePill.textContent = `Tone: ${tone}`;
+        tonePill.className = `tac-tone-pill tone-${tone.toLowerCase()}`;
+
+        document.getElementById("tacExecutiveSummary").textContent = a.executive_summary || "No executive summary available.";
+        document.getElementById("tacGuidance").textContent = a.forward_guidance || "No explicit numerical guidance provided in call.";
+
+        const devList = document.getElementById("tacDevelopments");
+        const devs = a.key_developments || [];
+        devList.innerHTML = devs.length ? devs.map(d => `<li>${d}</li>`).join("") : "<li>Steady operational momentum highlighted by management.</li>";
+
+        const headList = document.getElementById("tacHeadwinds");
+        const heads = a.risk_headwinds || [];
+        headList.innerHTML = heads.length ? heads.map(h => `<li>${h}</li>`).join("") : "<li>No major extraordinary headwinds disclosed in call.</li>";
+
+        showToast("Transcript analyzed successfully with Local LLM!", "success");
+    } catch (err) {
+        console.error("Transcript analysis error:", err);
+        document.getElementById("tacModelBadge").textContent = "Analysis Notice";
+        document.getElementById("tacExecutiveSummary").textContent = `Could not complete LLM analysis: ${err.message}`;
+        showToast(`Transcript analysis notice: ${err.message}`, "info");
+    }
+}
+
+// Sector & Peer Comparison Controller
+let allSectors = [];
+let activeSectorFilter = "";
+
+async function loadSectorComparison() {
+    const tableBody = document.getElementById("sectorPeerTableBody");
+    const select = document.getElementById("sectorFilterSelect");
+    if (!tableBody) return;
+
+    try {
+        const res = await fetch("/api/sectors");
+        if (!res.ok) throw new Error("Could not fetch sectors");
+        allSectors = await res.json();
+
+        if (select) {
+            select.innerHTML = '<option value="">All Sectors (Consolidated Benchmarking)</option>' +
+                allSectors.map(s => `<option value="${s.sector}">${s.sector} (${s.company_count})</option>`).join("");
+            if (activeSectorFilter) {
+                select.value = activeSectorFilter;
+            }
+        }
+
+        renderSectorPeerTable();
+    } catch (err) {
+        console.error("Failed loading sectors:", err);
+        tableBody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--text-dim); padding:2rem;">Failed loading sector peer data.</td></tr>`;
+    }
+}
+
+function renderSectorPeerTable() {
+    const tableBody = document.getElementById("sectorPeerTableBody");
+    if (!tableBody) return;
+
+    let targetCompanies = [];
+    allSectors.forEach(s => {
+        if (!activeSectorFilter || s.sector === activeSectorFilter) {
+            (s.companies || []).forEach(c => {
+                targetCompanies.push({ ...c, sector: s.sector });
+            });
+        }
+    });
+
+    if (!targetCompanies.length) {
+        tableBody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--text-dim); padding:2rem;">No companies tracked in selected sector.</td></tr>`;
+        return;
+    }
+
+    tableBody.innerHTML = targetCompanies.map(c => `
+        <tr style="cursor:pointer;" onclick="selectCompany(${c.id})">
+            <td style="font-weight:600;">
+                <span style="color:var(--text-bright);">${c.name}</span>
+                <span class="ci-ticker" style="margin-left:6px;">${c.ticker || ''}</span>
+            </td>
+            <td><span class="badge">${c.sector || 'General'}</span></td>
+            <td>${c.market_cap || '—'}</td>
+            <td>${c.pe_ratio || '—'}</td>
+            <td class="table-period">${c.period || 'Latest'}</td>
+            <td style="font-weight:600;">${c.revenue ? formatCurrency(c.revenue, 'INR') : '—'}</td>
+            <td class="${(c.revenue_growth || 0) >= 0 ? 'text-success' : 'text-danger'}">${formatPercent(c.revenue_growth)}</td>
+            <td>${c.operating_margin ? (c.operating_margin * 100).toFixed(1) + '%' : '—'}</td>
+            <td>${c.net_profit ? formatCurrency(c.net_profit, 'INR') : '—'}</td>
+        </tr>
+    `).join("");
 }
 
 // Graph RAG & AI Assistant Controller
@@ -558,10 +949,16 @@ function submitQuickQuestion(text) {
 
 // Screener Scraper Modal Controller
 let searchDebounceTimer = null;
+let modalAutoCloseTimer = null;
 
 function openScreenerModal() {
+    if (modalAutoCloseTimer) {
+        clearTimeout(modalAutoCloseTimer);
+        modalAutoCloseTimer = null;
+    }
     const modal = document.getElementById("scraperModal");
     if (modal) {
+        modal.style.opacity = "1";
         modal.style.display = "flex";
         document.getElementById("screenerSearchInput").focus();
         resetIngestModalState();
@@ -569,9 +966,19 @@ function openScreenerModal() {
 }
 
 function closeScreenerModal() {
+    if (modalAutoCloseTimer) {
+        clearTimeout(modalAutoCloseTimer);
+        modalAutoCloseTimer = null;
+    }
     const modal = document.getElementById("scraperModal");
     if (modal) {
-        modal.style.display = "none";
+        modal.style.transition = "opacity 0.2s ease";
+        modal.style.opacity = "0";
+        setTimeout(() => {
+            modal.style.display = "none";
+            modal.style.opacity = "1";
+            resetIngestModalState();
+        }, 200);
     }
 }
 
@@ -579,11 +986,15 @@ function resetIngestModalState() {
     const progressCard = document.getElementById("pipelineProgressCard");
     const resultCard = document.getElementById("ingestionResultCard");
     const stagesBox = document.getElementById("pipelineStages");
+    const statusText = document.getElementById("pipelineStatusText");
     const dropdown = document.getElementById("screenerDropdown");
+    const spinner = document.getElementById("screenerModalSpinner");
     if (progressCard) progressCard.style.display = "none";
     if (resultCard) resultCard.style.display = "none";
     if (stagesBox) stagesBox.innerHTML = "";
+    if (statusText) statusText.textContent = "Executing Screener Ingestion Pipeline...";
     if (dropdown) dropdown.style.display = "none";
+    if (spinner) spinner.style.display = "none";
     const btn = document.getElementById("btnExecuteIngest");
     if (btn) {
         btn.disabled = false;
@@ -592,7 +1003,7 @@ function resetIngestModalState() {
     }
 }
 
-function selectScreenerSuggestion(ticker) {
+function selectScreenerSuggestion(ticker, autoIngest = false) {
     const input = document.getElementById("screenerSearchInput");
     if (input) {
         input.value = ticker;
@@ -601,19 +1012,27 @@ function selectScreenerSuggestion(ticker) {
     if (dropdown) {
         dropdown.style.display = "none";
     }
+    if (autoIngest) {
+        executeScreenerIngestion();
+    }
 }
 
 async function handleScreenerSearchInput(e) {
     const query = e.target.value.trim();
     const dropdown = document.getElementById("screenerDropdown");
+    const spinner = document.getElementById("screenerModalSpinner");
     if (!dropdown) return;
 
-    if (query.length < 2) {
+    if (!query) {
         dropdown.style.display = "none";
+        dropdown.innerHTML = "";
+        if (spinner) spinner.style.display = "none";
         return;
     }
 
     clearTimeout(searchDebounceTimer);
+    if (spinner) spinner.style.display = "block";
+
     searchDebounceTimer = setTimeout(async () => {
         try {
             const res = await fetch("/api/scrape/search", {
@@ -621,23 +1040,37 @@ async function handleScreenerSearchInput(e) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ query }),
             });
+            if (spinner) spinner.style.display = "none";
             if (!res.ok) return;
+
             const results = await res.json();
             if (results && results.length > 0) {
                 dropdown.innerHTML = results.map(r => `
-                    <div class="screener-item" onclick="selectScreenerSuggestion('${r.ticker}')">
-                        <span class="screener-item-name">${r.name}</span>
-                        <span class="screener-item-ticker">${r.ticker}</span>
+                    <div class="screener-item" onclick="selectScreenerSuggestion('${r.ticker}', false)">
+                        <div class="screener-item-info">
+                            <span class="screener-item-name">${r.name}</span>
+                            <span class="screener-item-ticker">${r.ticker}</span>
+                        </div>
+                        <button type="button" class="screener-item-action" onclick="event.stopPropagation(); selectScreenerSuggestion('${r.ticker}', true)">
+                            ⚡ Ingest
+                        </button>
                     </div>
                 `).join("");
-                dropdown.style.display = "block";
+                dropdown.style.display = "flex";
             } else {
-                dropdown.style.display = "none";
+                dropdown.innerHTML = `
+                    <div class="screener-empty-dropdown">
+                        No companies found on Screener.in for "<strong>${query}</strong>".<br>
+                        <span style="font-size:0.75rem; color:var(--accent-cyan); margin-top:4px; display:inline-block;">Click "Scrape & Ingest" below to try direct ticker lookup.</span>
+                    </div>
+                `;
+                dropdown.style.display = "flex";
             }
         } catch (err) {
-            console.warn("Screener search error:", err);
+            if (spinner) spinner.style.display = "none";
+            console.warn("Screener live search error:", err);
         }
-    }, 250);
+    }, 200);
 }
 
 async function executeScreenerIngestion() {
@@ -661,6 +1094,7 @@ async function executeScreenerIngestion() {
     spinner.style.display = "inline-block";
     progressCard.style.display = "flex";
     resultCard.style.display = "none";
+    statusText.textContent = `Connecting to Screener.in & downloading filings for ${query}...`;
     stagesBox.innerHTML = `
         <div class="pipeline-stage-item"><span class="stage-check">✓</span> <span>Connecting to Screener.in for ${query}...</span></div>
     `;
@@ -684,11 +1118,14 @@ async function executeScreenerIngestion() {
 
         statusText.textContent = `Completed in ${data.duration_seconds}s! Stored in Knowledge Graph.`;
 
-        // Render result card
+        // Render result card with clear auto-close countdown
         resultCard.innerHTML = `
             <div class="result-success-title">
-                <span>✓</span>
-                <span>Successfully Ingested ${data.name} (${data.ticker})</span>
+                <span class="result-success-icon">✓</span>
+                <span>Scraping & Ingestion Complete!</span>
+            </div>
+            <div class="result-company-header">
+                <strong>${data.name}</strong> <span class="ci-ticker">(${data.ticker})</span>
             </div>
             <div class="result-stats-grid">
                 <div class="result-stat-item">
@@ -704,18 +1141,42 @@ async function executeScreenerIngestion() {
                     <div class="result-stat-lbl">Text Chunks</div>
                 </div>
             </div>
+            <div class="modal-auto-close-banner">
+                <div class="auto-close-spinner"></div>
+                <span>Scraping finished! Closing window in <strong id="autoCloseSeconds">2</strong>s...</span>
+            </div>
+            <button type="button" class="btn btn-primary btn-view-now" onclick="closeScreenerModal()">
+                <span>✓ View Company Dossier Now</span>
+            </button>
         `;
         resultCard.style.display = "flex";
 
-        showToast(`Ingested ${data.name} into Knowledge Graph!`, "success");
+        showToast(`✓ Ingested ${data.name}! Opening dossier...`, "success");
 
-        // Reload companies list in background
-        await loadCompanies();
+        // Reload companies list in background and select newly ingested company
+        await loadCompanies(data.company_id);
 
-        // Auto select newly ingested company
-        if (data.company_id) {
-            await selectCompany(data.company_id);
-        }
+        // Auto-close modal after 1.8 seconds so user is seamlessly brought to the dossier
+        let secondsLeft = 2;
+        const countdownEl = document.getElementById("autoCloseSeconds");
+        const intervalId = setInterval(() => {
+            secondsLeft -= 1;
+            if (countdownEl && secondsLeft >= 0) {
+                countdownEl.textContent = secondsLeft;
+            }
+            if (secondsLeft <= 0) {
+                clearInterval(intervalId);
+            }
+        }, 700);
+
+        modalAutoCloseTimer = setTimeout(() => {
+            clearInterval(intervalId);
+            closeScreenerModal();
+            const heroEl = document.getElementById("companyHero");
+            if (heroEl) {
+                heroEl.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+        }, 1800);
 
     } catch (err) {
         console.error("Ingestion failed:", err);
@@ -723,7 +1184,7 @@ async function executeScreenerIngestion() {
         showToast(`Failed: ${err.message}`, "info");
     } finally {
         btn.disabled = false;
-        btnText.textContent = "Scrape Another Company";
+        btnText.textContent = "Scrape & Ingest into Knowledge Graph";
         spinner.style.display = "none";
     }
 }
@@ -929,25 +1390,22 @@ async function startLiveScreenerIngestion(queryOrTicker) {
 
         showToast(`Extracted ${data.name} with official PDF!`, "success");
 
-        // Reload company list in background
-        await loadCompanies();
+        // Reload company list and select newly ingested company
+        await loadCompanies(data.company_id);
 
-        // Select the newly ingested company
-        if (data.company_id) {
-            await selectCompany(data.company_id);
-        }
-
-        // Fade progress card after 3.5 seconds
+        // Fade progress card after 1.2 seconds and scroll to company dossier
         setTimeout(() => {
             if (progressCard) {
-                progressCard.style.transition = "opacity 0.4s ease";
+                progressCard.style.transition = "opacity 0.3s ease";
                 progressCard.style.opacity = "0";
                 setTimeout(() => {
                     progressCard.style.display = "none";
                     progressCard.style.opacity = "1";
-                }, 400);
+                    const hero = document.getElementById("companyHero");
+                    if (hero) hero.scrollIntoView({ behavior: "smooth", block: "start" });
+                }, 300);
             }
-        }, 3500);
+        }, 1200);
 
     } catch (err) {
         console.error("Live extraction failed:", err);
@@ -1197,9 +1655,19 @@ document.addEventListener("DOMContentLoaded", () => {
             if (e.key === "Enter") {
                 e.preventDefault();
                 executeScreenerIngestion();
+            } else if (e.key === "Escape") {
+                const dd = document.getElementById("screenerDropdown");
+                if (dd) dd.style.display = "none";
             }
         });
     }
+
+    document.addEventListener("click", (e) => {
+        if (!e.target.closest(".screener-input-wrap")) {
+            const dd = document.getElementById("screenerDropdown");
+            if (dd) dd.style.display = "none";
+        }
+    });
 
     const btnIngest = document.getElementById("btnExecuteIngest");
     if (btnIngest) btnIngest.addEventListener("click", executeScreenerIngestion);
@@ -1243,12 +1711,90 @@ document.addEventListener("DOMContentLoaded", () => {
                     resetGraphCamera();
                     wakeGraphSimulation(0.6);
                 }, 50);
+            } else if (targetTabId === "tab-sector") {
+                stopGraphSimulation();
+                loadSectorComparison();
+            } else if (targetTabId === "tab-op-matrix") {
+                stopGraphSimulation();
+                loadOperationalMatrix();
             } else {
                 // Pause background physics loop to maintain 60-120fps scrolling on main tabs
                 stopGraphSimulation();
             }
         });
     });
+
+    // Operational Matrix Scope & Export buttons
+    const btnOpCompany = document.getElementById("btnOpScopeCompany");
+    if (btnOpCompany) btnOpCompany.addEventListener("click", () => setOperationalMatrixScope("company"));
+
+    const btnOpSector = document.getElementById("btnOpScopeSector");
+    if (btnOpSector) btnOpSector.addEventListener("click", () => setOperationalMatrixScope("sector"));
+
+    const selOpComp = document.getElementById("opCompanySelect");
+    if (selOpComp) {
+        selOpComp.addEventListener("change", (e) => {
+            selectedCompanyId = parseInt(e.target.value, 10);
+            setOperationalMatrixScope("company");
+        });
+    }
+
+    const btnExportOp = document.getElementById("btnExportOpMatrixExcel");
+    if (btnExportOp) btnExportOp.addEventListener("click", exportOperationalMatrixExcel);
+
+    // Hero Delete Button
+    const btnHeroDelete = document.getElementById("btnHeroDelete");
+    if (btnHeroDelete) {
+        btnHeroDelete.addEventListener("click", () => {
+            if (currentCompanyDetail) {
+                promptDeleteCompany(currentCompanyDetail.id, currentCompanyDetail.name);
+            } else if (selectedCompanyId) {
+                const found = allCompanies.find(c => c.id === selectedCompanyId);
+                promptDeleteCompany(selectedCompanyId, found ? found.name : "Company");
+            }
+        });
+    }
+
+    // Hero Re-scrape Button
+    const btnHeroRescrape = document.getElementById("btnHeroRescrape");
+    if (btnHeroRescrape) {
+        btnHeroRescrape.addEventListener("click", () => {
+            if (currentCompanyDetail) {
+                promptRescrapeCompany(currentCompanyDetail.id, currentCompanyDetail.ticker || currentCompanyDetail.name);
+            } else if (selectedCompanyId) {
+                const found = allCompanies.find(c => c.id === selectedCompanyId);
+                promptRescrapeCompany(selectedCompanyId, found ? (found.ticker || found.name) : "Company");
+            }
+        });
+    }
+
+    // Delete Modal Actions
+    const btnCloseDeleteModal = document.getElementById("btnCloseDeleteModal");
+    if (btnCloseDeleteModal) btnCloseDeleteModal.addEventListener("click", closeDeleteModal);
+
+    const btnCancelDeleteModal = document.getElementById("btnCancelDeleteModal");
+    if (btnCancelDeleteModal) btnCancelDeleteModal.addEventListener("click", closeDeleteModal);
+
+    const btnConfirmDelete = document.getElementById("btnConfirmDelete");
+    if (btnConfirmDelete) btnConfirmDelete.addEventListener("click", executeDeleteCompany);
+
+    // Sector Peer Comparison Filter & Export
+    const sectorFilterSelect = document.getElementById("sectorFilterSelect");
+    if (sectorFilterSelect) {
+        sectorFilterSelect.addEventListener("change", (e) => {
+            activeSectorFilter = e.target.value;
+            renderSectorPeerTable();
+        });
+    }
+
+    const btnExportSectorExcel = document.getElementById("btnExportSectorExcel");
+    if (btnExportSectorExcel) {
+        btnExportSectorExcel.addEventListener("click", () => {
+            const tmpl = document.getElementById("selectExcelTemplate")?.value || "auto";
+            showToast(`Generating Sector Master Excel report [${tmpl}]...`, "success");
+            window.location.href = `/api/export/sector-excel?template=${encodeURIComponent(tmpl)}`;
+        });
+    }
 
     // Hero View Subgraph Button
     const btnHeroViewGraph = document.getElementById("btnHeroViewGraph");
@@ -1894,3 +2440,210 @@ function renderGraphCanvas() {
     graphCtx.restore();
 }
 
+/* =============================================================================
+   Operational Model & Research Matrix Controller (Spreadsheet Replication)
+   ============================================================================= */
+
+let currentOpMatrixScope = "company"; // "company" or "sector"
+let currentOpMatrixData = null;
+
+async function loadOperationalMatrix(forceScope = null) {
+    if (forceScope) {
+        currentOpMatrixScope = forceScope;
+    }
+    const container = document.getElementById("opMatrixTableWrapper");
+    const loading = document.getElementById("opMatrixLoading");
+    if (loading) loading.style.display = "flex";
+    if (container) container.innerHTML = "";
+
+    const btnComp = document.getElementById("btnOpScopeCompany");
+    const btnSec = document.getElementById("btnOpScopeSector");
+    if (btnComp && btnSec) {
+        btnComp.classList.toggle("active", currentOpMatrixScope === "company");
+        btnSec.classList.toggle("active", currentOpMatrixScope === "sector");
+    }
+
+    const selComp = document.getElementById("opCompanySelect");
+    if (selComp) {
+        selComp.style.display = (currentOpMatrixScope === "company") ? "inline-block" : "none";
+        // Populate options
+        const activeId = selectedCompanyId || (currentCompanyDetail ? currentCompanyDetail.id : (allCompanies[0] ? allCompanies[0].id : null));
+        let optHtml = "";
+        (allCompanies || []).forEach(c => {
+            const isSel = (c.id === activeId) ? "selected" : "";
+            optHtml += `<option value="${c.id}" ${isSel}>${c.name} (${c.ticker || '—'})</option>`;
+        });
+        selComp.innerHTML = optHtml;
+    }
+
+    try {
+        let url = "";
+        if (currentOpMatrixScope === "sector") {
+            url = "/api/sectors/all/operational-matrix";
+        } else {
+            const cid = selectedCompanyId || (currentCompanyDetail ? currentCompanyDetail.id : (allCompanies[0] ? allCompanies[0].id : 1));
+            url = `/api/companies/${cid}/operational-matrix`;
+        }
+
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Failed to load operational research matrix");
+        const json = await res.json();
+        currentOpMatrixData = json.data;
+        renderOperationalMatrix(currentOpMatrixData, currentOpMatrixScope);
+    } catch (err) {
+        console.error("Operational matrix load error:", err);
+        if (container) {
+            container.innerHTML = `
+                <div style="padding: 30px; text-align: center; color: var(--text-muted);">
+                    <p style="color: #ef4444; font-weight: 600;">Could not load operational model</p>
+                    <p style="font-size: 0.85rem; margin-top: 6px;">${err.message}</p>
+                </div>
+            `;
+        }
+    } finally {
+        if (loading) loading.style.display = "none";
+    }
+}
+
+function setOperationalMatrixScope(scope) {
+    currentOpMatrixScope = scope;
+    loadOperationalMatrix(scope);
+}
+
+function renderOperationalMatrix(data, scope) {
+    const container = document.getElementById("opMatrixTableWrapper");
+    if (!container || !data) return;
+
+    const companies = data.companies || [data];
+    if (companies.length === 0) {
+        container.innerHTML = `<div style="padding: 30px; text-align: center; color: var(--text-muted);">No operational matrix data available.</div>`;
+        return;
+    }
+
+    const globalPeriods = data.global_periods || (companies[0].periods || []);
+
+    let html = `<table class="op-matrix-table">`;
+
+    companies.forEach((comp, compIdx) => {
+        const cName = comp.company_name || comp.name || "Company";
+        const cTicker = comp.ticker || "";
+        const periods = comp.periods || globalPeriods;
+        const categories = comp.categories || [];
+        const totalCols = periods.length + 2;
+
+        // 1. Company Banner Row
+        html += `
+            <tr class="op-company-banner-row">
+                <th colspan="${totalCols}">
+                    🏢 ${cName} <span style="opacity:0.85; font-weight:normal; margin-left:6px;">(${cTicker})</span> — Multi-Quarter Operational & Financial Research Model
+                </th>
+            </tr>
+        `;
+
+        const periodLabels = comp.period_labels || data.global_period_labels || {};
+
+        // 2. Header Row
+        html += `
+            <tr class="op-header-row">
+                <th class="op-col-metric">METRIC / KPI</th>
+                <th class="op-col-unit">UNIT</th>
+                ${periods.map(p => `<th class="op-col-qtr">${periodLabels[p] || p}</th>`).join("")}
+            </tr>
+        `;
+
+        // 3. Category & Metric Rows
+        categories.forEach(cat => {
+            const catName = cat.category || "";
+            html += `
+                <tr class="op-cat-row">
+                    <td colspan="${totalCols}">▸ ${catName}</td>
+                </tr>
+            `;
+
+            (cat.metrics || []).forEach(m => {
+                const isHighlight = m.is_highlight;
+                const rowClass = isHighlight ? "op-row op-row-highlight" : "op-row";
+                const values = m.values || {};
+
+                html += `
+                    <tr class="${rowClass}">
+                        <td class="op-td-metric">${m.name}</td>
+                        <td class="op-td-unit">${m.unit || ""}</td>
+                        ${periods.map(p => {
+                            const val = values[p] !== undefined ? values[p] : "-";
+                            const isNull = val === "-" || val === null || val === "";
+                            return `<td class="op-td-val ${isNull ? 'op-empty-cell' : ''}">${val}</td>`;
+                        }).join("")}
+                    </tr>
+                `;
+            });
+        });
+
+        // Spacer between stacked companies in sector view
+        if (compIdx < companies.length - 1) {
+            html += `<tr><td colspan="${totalCols}" style="height: 24px; background: transparent; border: none;"></td></tr>`;
+        }
+    });
+
+    html += `</table>`;
+    container.innerHTML = html;
+}
+
+function exportOperationalMatrixExcel() {
+    let url = "";
+    if (currentOpMatrixScope === "sector") {
+        url = "/api/export/excel/sector-matrix/all";
+    } else {
+        const cid = selectedCompanyId || (currentCompanyDetail ? currentCompanyDetail.id : 1);
+        url = `/api/export/excel/operational-matrix/${cid}`;
+    }
+    showToast("Generating formatted operational research model Excel...", "info");
+    window.location.href = url;
+}
+
+
+// === Clear-All Data Reset ===
+function confirmClearAllData() {
+    const confirmed = window.confirm(
+        "⚠️ RESET ALL DATA\n\n" +
+        "This will permanently delete:\n" +
+        "  • All company records in the database\n" +
+        "  • All downloaded PDF files\n" +
+        "  • All operational metrics, financial data, risk factors\n\n" +
+        "This action cannot be undone.\n\n" +
+        "Are you sure you want to proceed?"
+    );
+    if (confirmed) {
+        clearAllData();
+    }
+}
+
+async function clearAllData() {
+    const btn = document.getElementById("btnClearAllData");
+    if (btn) { btn.disabled = true; btn.querySelector("span").textContent = "Clearing..."; }
+
+    try {
+        showToast("Wiping all company data...", "info");
+        const res = await fetch("/api/companies/clear-all", { method: "POST" });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || "Clear-all failed");
+        }
+        const data = await res.json();
+        showToast(`✅ Reset complete. ${data.deleted_files || 0} PDF files deleted.`, "success");
+
+        // Reload UI state
+        allCompanies = [];
+        selectedCompanyId = null;
+        currentCompanyDetail = null;
+        document.getElementById("companyCountBadge").textContent = "0 Active";
+        document.getElementById("companyList").innerHTML = `<div class="loading-state"><span>No companies. Scrape a company to begin.</span></div>`;
+        clearDashboard();
+
+    } catch (err) {
+        console.error("Clear-all failed:", err);
+        showToast("Error: " + err.message, "info");
+    } finally {
+        if (btn) { btn.disabled = false; const sp = btn.querySelector("span"); if (sp) sp.textContent = "🔄 Reset All Data"; }
+    }
+}

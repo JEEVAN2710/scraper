@@ -27,6 +27,25 @@ def test_api_screener_search(client):
         assert data[0]["name"] == "Infosys Ltd"
 
 
+def test_api_screener_search_get(client):
+    """Test GET /api/scrape/search and /api/screener/search endpoints."""
+    mock_results = [
+        {"id": 1284789, "name": "AWFIS Space Solutions Ltd", "ticker": "AWFIS", "url": "/company/AWFIS/consolidated/"}
+    ]
+
+    with patch("app.api.routes.scraper.search_company", return_value=mock_results):
+        res = client.get("/api/scrape/search?q=awfis")
+        assert res.status_code == 200
+        data = res.json()
+        assert len(data) == 1
+        assert data[0]["ticker"] == "AWFIS"
+        assert data[0]["name"] == "AWFIS Space Solutions Ltd"
+
+        res2 = client.get("/api/screener/search?q=awfis")
+        assert res2.status_code == 200
+        assert res2.json()[0]["ticker"] == "AWFIS"
+
+
 def test_api_screener_ingest_mock(client):
     """Test POST /api/scrape/ingest endpoint with mock pipeline."""
     mock_ingestion_res = {

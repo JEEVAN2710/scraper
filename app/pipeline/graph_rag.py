@@ -65,9 +65,13 @@ class GraphRAGEngine:
                     answer = self._synthesize_direct_graph_answer(question, subgraph, citations)
                     llm_used = f"{self.llm.get_model_name()} (Offline Fallback)"
             else:
-                logger.info("Ollama is not running or model not pulled. Using deterministic Graph RAG synthesis.")
+                if not getattr(self.db.settings, "llm_enabled", True):
+                    logger.info("LLM is turned off in .env (LLM_ENABLED=false). Using instant deterministic Graph RAG synthesis.")
+                    llm_used = "Graph RAG Engine (Deterministic - LLM OFF)"
+                else:
+                    logger.info("Ollama is not running or model not pulled. Using deterministic Graph RAG synthesis.")
+                    llm_used = "Graph RAG Engine (Ollama Standby)"
                 answer = self._synthesize_direct_graph_answer(question, subgraph, citations)
-                llm_used = "Graph RAG Engine (Ollama Standby)"
 
             return {
                 "question": question,

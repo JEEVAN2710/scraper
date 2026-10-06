@@ -559,9 +559,6 @@ class Graphifier:
                             f"CITES_{item['page']}",
                         )
 
-            # Also incorporate demo companies if not already present in the graph
-            self._incorporate_demo_data()
-
             # Persist to disk
             self.graph.save_to_disk()
             logger.info("=== Database Graphification Completed Successfully ===")

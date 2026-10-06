@@ -8,6 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="alternate icon" href="/favicon.ico">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -38,28 +40,20 @@
             </div>
 
             <div class="nav-center-actions">
-                <a href="/graph" target="_blank" class="nav-graph-btn" title="Open Dedicated Neo4j-Style Graph Visualizer in New Tab">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="18" cy="5" r="3"></circle>
-                        <circle cx="6" cy="12" r="3"></circle>
-                        <circle cx="18" cy="19" r="3"></circle>
-                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                <a href="/graph" target="_blank" class="nav-graph-btn" title="Open Dedicated Knowledge Graph Visualizer">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <circle cx="4" cy="6" r="2"></circle>
+                        <circle cx="20" cy="6" r="2"></circle>
+                        <circle cx="4" cy="18" r="2"></circle>
+                        <circle cx="20" cy="18" r="2"></circle>
+                        <line x1="6" y1="7" x2="9.5" y2="10.5"></line>
+                        <line x1="18" y1="7" x2="14.5" y2="10.5"></line>
+                        <line x1="6" y1="17" x2="9.5" y2="13.5"></line>
+                        <line x1="18" y1="17" x2="14.5" y2="13.5"></line>
                     </svg>
-                    <span>Graph DB Visualizer</span>
-                    <span class="nav-graph-pill" id="navGraphPill">107 Nodes</span>
+                    <span>Knowledge Graph</span>
                 </a>
-            </div>
-
-            <div class="nav-status-group">
-                <div class="status-pill" id="dbStatusPill">
-                    <span class="status-dot"></span>
-                    <span class="status-label">Database: Checking...</span>
-                </div>
-                <div class="status-pill llm-pill" id="llmStatusPill">
-                    <span class="status-icon">🤖</span>
-                    <span class="status-label">LLM: phi3:mini (Local)</span>
-                </div>
             </div>
         </header>
 
@@ -90,15 +84,22 @@
                         </svg>
                         <span>Scrape from Screener</span>
                     </button>
+                    <button class="btn btn-danger-outline" id="btnClearAllData" title="Wipe all company data and downloaded files for fresh testing" onclick="confirmClearAllData()" style="margin-top:6px; width:100%; font-size:11px; padding:6px 10px; border-color:#dc3545; color:#dc3545; background:transparent; border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:6px; justify-content:center;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                        <span>🔄 Reset All Data</span>
+                    </button>
                     <div class="search-box">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="11" cy="11" r="8"></circle>
                             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                         </svg>
-                        <input type="text" id="companySearchInput" placeholder="Search any company (e.g. Reliance, TCS, Tata)..." autocomplete="off">
+                        <input type="text" id="companySearchInput" placeholder="Search saved or any company (e.g. Awfis, TCS)..." autocomplete="off">
                         <div class="search-live-spinner" id="searchLiveSpinner" style="display: none;"></div>
+                        <div class="live-search-dropdown" id="liveSearchDropdown" style="display: none;"></div>
                     </div>
-                    <div class="live-search-dropdown" id="liveSearchDropdown" style="display: none;"></div>
                 </div>
 
                 <div class="company-list" id="companyList">
@@ -109,15 +110,6 @@
                     </div>
                 </div>
 
-                <div class="sidebar-footer">
-                    <div class="cpu-stat-card">
-                        <div class="cpu-stat-header">
-                            <span class="cpu-title">Local Inference Profile</span>
-                            <span class="cpu-badge">CPU Friendly</span>
-                        </div>
-                        <p class="cpu-desc">Intel Core i3 12th-Gen • 16 GB RAM • Zero Cloud Dependencies</p>
-                    </div>
-                </div>
             </aside>
  
             <!-- Sidebar Resizer Splitter -->
@@ -152,27 +144,31 @@
                 <section class="company-hero-card" id="companyHero">
                     <div class="hero-top-row">
                         <div class="company-identity">
-                            <div class="ticker-badge-row">
-                                <div class="ticker-badge" id="heroTicker">TCS</div>
-                                <span class="sector-badge" id="heroSector" style="display:none;">IT Services</span>
-                            </div>
-                            <div>
-                                <h1 class="company-name" id="heroName">Tata Consultancy Services Ltd.</h1>
-                                <a href="#" target="_blank" class="company-website-link" id="heroWebsite">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                                    </svg>
-                                    <span id="heroWebsiteText">https://www.tcs.com/investor-relations</span>
-                                </a>
+                            <div class="company-avatar" id="heroAvatar">CO</div>
+                            <div class="company-info-block">
+                                <div class="company-title-row">
+                                    <h1 class="company-name" id="heroName">No Company Selected</h1>
+                                    <span class="ticker-pill" id="heroTicker">N/A</span>
+                                    <span class="sector-badge" id="heroSector" style="display:none;"></span>
+                                </div>
+                                <div class="company-sub-row">
+                                    <a href="#" target="_blank" class="company-website-link" id="heroWebsite" style="display: none;">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <line x1="2" y1="12" x2="22" y2="12"></line>
+                                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                                        </svg>
+                                        <span id="heroWebsiteText"></span>
+                                    </a>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Main Action & Download Buttons -->
+                        <!-- Main Action & Download Buttons (Unified Equal Size) -->
                         <div class="download-action-group">
                             <!-- Download PDF -->
-                            <button class="btn btn-pdf" id="btnDownloadPdf" title="Download latest official PDF report">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <button class="btn btn-action btn-pdf" id="btnDownloadPdf" title="Download latest official PDF report">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                     <polyline points="14 2 14 8 20 8"></polyline>
                                     <line x1="12" y1="18" x2="12" y2="12"></line>
@@ -181,21 +177,30 @@
                                 <span>Download PDF</span>
                             </button>
 
-                            <!-- Download Excel (.xlsx) -->
-                            <button class="btn btn-excel" id="btnDownloadExcel" title="Export complete multi-sheet Excel dossier">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <!-- Excel Template Format Selector -->
+                            <div class="template-selector-wrap">
+                                <select id="selectExcelTemplate" class="form-select action-select" title="Select Excel model template">
+                                    <option value="auto">⚡ Auto-Detect Model</option>
+                                    <option value="coworking">🏢 Coworking Model (29 KPIs)</option>
+                                    <option value="adaptive">📊 Adaptive Disclosed Model</option>
+                                </select>
+                            </div>
+
+                            <!-- Download Excel -->
+                            <button class="btn btn-action btn-excel" id="btnDownloadExcel" title="Export complete multi-sheet Excel dossier">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                                     <line x1="3" y1="9" x2="21" y2="9"></line>
                                     <line x1="3" y1="15" x2="21" y2="15"></line>
                                     <line x1="9" y1="3" x2="9" y2="21"></line>
                                     <line x1="15" y1="3" x2="15" y2="21"></line>
                                 </svg>
-                                <span>Export Excel (.xlsx)</span>
+                                <span>Export Excel</span>
                             </button>
 
-                            <!-- Download CSV (.csv) -->
-                            <button class="btn btn-csv" id="btnDownloadCsv" title="Export financial metrics as CSV table">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <!-- Download CSV -->
+                            <button class="btn btn-action btn-csv" id="btnDownloadCsv" title="Export financial metrics as CSV table">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                     <polyline points="7 10 12 15 17 10"></polyline>
                                     <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -203,16 +208,41 @@
                                 <span>Export CSV</span>
                             </button>
 
-                            <!-- View Knowledge Subgraph -->
-                            <button class="btn btn-subgraph" id="btnHeroViewGraph" title="Explore this company's Knowledge Graph neighborhood">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <circle cx="18" cy="5" r="3"></circle>
-                                    <circle cx="6" cy="12" r="3"></circle>
-                                    <circle cx="18" cy="19" r="3"></circle>
-                                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-                                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                            <!-- View Knowledge Graph -->
+                            <button class="btn btn-action btn-subgraph" id="btnHeroViewGraph" title="View interactive Knowledge Graph">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                    <circle cx="4" cy="6" r="2"></circle>
+                                    <circle cx="20" cy="6" r="2"></circle>
+                                    <circle cx="4" cy="18" r="2"></circle>
+                                    <circle cx="20" cy="18" r="2"></circle>
+                                    <line x1="6" y1="7" x2="9.5" y2="10.5"></line>
+                                    <line x1="18" y1="7" x2="14.5" y2="10.5"></line>
+                                    <line x1="6" y1="17" x2="9.5" y2="13.5"></line>
+                                    <line x1="18" y1="17" x2="14.5" y2="13.5"></line>
                                 </svg>
-                                <span>View Subgraph</span>
+                                <span>Knowledge Graph</span>
+                            </button>
+
+                            <!-- Re-scrape Clean from Screener -->
+                            <button class="btn btn-action btn-rescrape" id="btnHeroRescrape" title="Re-scrape fresh filings and latest concall transcripts from Screener.in">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="23 4 23 10 17 10"></polyline>
+                                    <polyline points="1 20 1 14 7 14"></polyline>
+                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                </svg>
+                                <span>Re-scrape</span>
+                            </button>
+
+                            <!-- Delete Company -->
+                            <button class="btn btn-action btn-delete" id="btnHeroDelete" title="Permanently delete company and all associated files">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                                </svg>
+                                <span>Delete</span>
                             </button>
                         </div>
                     </div>
@@ -261,15 +291,15 @@
                     <div class="hero-meta-bar">
                         <div class="meta-item">
                             <span class="meta-label">Latest Period:</span>
-                            <span class="meta-val" id="heroPeriod">FY2024</span>
+                            <span class="meta-val" id="heroPeriod">N/A</span>
                         </div>
                         <div class="meta-item">
                             <span class="meta-label">Primary Currency:</span>
-                            <span class="meta-val" id="heroCurrency">USD ($)</span>
+                            <span class="meta-val" id="heroCurrency">N/A</span>
                         </div>
                         <div class="meta-item">
                             <span class="meta-label">Reports Processed:</span>
-                            <span class="meta-val" id="heroReportCount">2 Reports</span>
+                            <span class="meta-val" id="heroReportCount">0 Reports</span>
                         </div>
                         <div class="meta-item">
                             <span class="meta-label">SHA-256 Duplication Check:</span>
@@ -287,9 +317,9 @@
                     <div class="kpi-card card-cyan">
                         <div class="kpi-header">
                             <span class="kpi-title">Total Revenue</span>
-                            <span class="kpi-growth growth-up" id="kpiRevenueGrowth">+4.1% YoY</span>
+                            <span class="kpi-growth" id="kpiRevenueGrowth" style="display: none;"></span>
                         </div>
-                        <div class="kpi-value" id="kpiRevenue">$29.08 B</div>
+                        <div class="kpi-value" id="kpiRevenue">N/A</div>
                         <div class="kpi-subtext">Consolidated reported revenue</div>
                     </div>
 
@@ -297,20 +327,20 @@
                     <div class="kpi-card card-emerald">
                         <div class="kpi-header">
                             <span class="kpi-title">Net Profit</span>
-                            <span class="kpi-growth growth-up" id="kpiProfitGrowth">+7.1% YoY</span>
+                            <span class="kpi-growth" id="kpiProfitGrowth" style="display: none;"></span>
                         </div>
-                        <div class="kpi-value" id="kpiProfit">$5.58 B</div>
-                        <div class="kpi-subtext">Net margin of 19.2%</div>
+                        <div class="kpi-value" id="kpiProfit">N/A</div>
+                        <div class="kpi-subtext">Consolidated net profit</div>
                     </div>
 
                     <!-- Operating Margin Card -->
                     <div class="kpi-card card-indigo">
                         <div class="kpi-header">
                             <span class="kpi-title">Operating Margin</span>
-                            <span class="kpi-tag" id="kpiOperatingProfit">$7.15B EBIT</span>
+                            <span class="kpi-tag" id="kpiOperatingProfit" style="display: none;"></span>
                         </div>
-                        <div class="kpi-value" id="kpiMargin">24.6%</div>
-                        <div class="kpi-subtext">Healthy operational discipline</div>
+                        <div class="kpi-value" id="kpiMargin">N/A</div>
+                        <div class="kpi-subtext">Operational efficiency</div>
                     </div>
 
                     <!-- EPS Card -->
@@ -319,7 +349,7 @@
                             <span class="kpi-title">Diluted EPS</span>
                             <span class="kpi-tag">Per Share</span>
                         </div>
-                        <div class="kpi-value" id="kpiEps">$1.54</div>
+                        <div class="kpi-value" id="kpiEps">N/A</div>
                         <div class="kpi-subtext">Earnings per share</div>
                     </div>
                 </section>
@@ -359,12 +389,16 @@
                         <span>Concalls & Transcripts</span>
                     </button>
                     <button class="tab-btn tab-graph-highlight" data-tab="tab-graph-view" id="btnTabGraphView">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="18" cy="5" r="3"></circle>
-                            <circle cx="6" cy="12" r="3"></circle>
-                            <circle cx="18" cy="19" r="3"></circle>
-                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <circle cx="4" cy="6" r="2"></circle>
+                            <circle cx="20" cy="6" r="2"></circle>
+                            <circle cx="4" cy="18" r="2"></circle>
+                            <circle cx="20" cy="18" r="2"></circle>
+                            <line x1="6" y1="7" x2="9.5" y2="10.5"></line>
+                            <line x1="18" y1="7" x2="14.5" y2="10.5"></line>
+                            <line x1="6" y1="17" x2="9.5" y2="13.5"></line>
+                            <line x1="18" y1="17" x2="14.5" y2="13.5"></line>
                         </svg>
                         <span>Knowledge Graph (Neo4j View)</span>
                     </button>
@@ -373,6 +407,24 @@
                             <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
                         </svg>
                         <span>Graph RAG & AI Assistant</span>
+                    </button>
+                    <button class="tab-btn tab-sector-highlight" data-tab="tab-sector" id="btnTabSector">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="20" x2="18" y2="10"></line>
+                            <line x1="12" y1="20" x2="12" y2="4"></line>
+                            <line x1="6" y1="20" x2="6" y2="14"></line>
+                        </svg>
+                        <span>Sector & Peer Comparison</span>
+                    </button>
+                    <button class="tab-btn tab-op-highlight" data-tab="tab-op-matrix" id="btnTabOpMatrix">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="3" y1="9" x2="21" y2="9"></line>
+                            <line x1="3" y1="15" x2="21" y2="15"></line>
+                            <line x1="9" y1="3" x2="9" y2="21"></line>
+                            <line x1="15" y1="3" x2="15" y2="21"></line>
+                        </svg>
+                        <span>Operational Model & Research Matrix</span>
                     </button>
                 </div>
 
@@ -397,7 +449,7 @@
                                     <circle cx="11" cy="11" r="8"></circle>
                                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                                 </svg>
-                                <input type="text" id="aiQuestionInput" placeholder="Ask any financial question (e.g. 'What was TCS revenue growth in FY2024?', 'Compare Apple vs Microsoft operating margins')...">
+                                <input type="text" id="aiQuestionInput" placeholder="Ask any financial question (e.g. 'What were the operational highlights?', 'Compare operating margins')...">
                                 <button class="btn btn-rag" id="btnAskAi">
                                     <span id="btnAskAiText">Ask Assistant</span>
                                     <div class="spinner-sm" id="aiSpinner" style="display:none;"></div>
@@ -407,9 +459,9 @@
                             <!-- Suggested Prompt Chips -->
                             <div class="prompt-chips">
                                 <span class="chip-label">Quick Inquiries:</span>
-                                <button class="chip" onclick="submitQuickQuestion('What was TCS revenue growth in FY2024?')">TCS FY24 Revenue & Growth</button>
-                                <button class="chip" onclick="submitQuickQuestion('Compare operating margins between Apple and Microsoft')">Apple vs Microsoft Margins</button>
-                                <button class="chip" onclick="submitQuickQuestion('What supply chain and regulatory risks did Apple disclose?')">Apple Supply Chain Risks</button>
+                                <button class="chip" onclick="submitQuickQuestion('What were the key operational highlights from the latest earnings call?')">Key Operational Highlights</button>
+                                <button class="chip" onclick="submitQuickQuestion('Summarize the main risk factors mentioned in recent filings')">Main Risk Factors</button>
+                                <button class="chip" onclick="submitQuickQuestion('What is the trend in operating margins over the last 4 quarters?')">Operating Margin Trend</button>
                                 <button class="chip" onclick="submitQuickQuestion('Which company has the highest net profit in the database?')">Highest Net Profit</button>
                             </div>
                         </div>
@@ -491,6 +543,9 @@
                             <div>
                                 <h3 class="panel-title">Quarterly Financial Results</h3>
                                 <p class="panel-desc">Recent quarter-on-quarter revenue, operating profit, and net profit from Screener.in.</p>
+                                <div style="margin-top:8px; font-size:12px; color:var(--text-dim); background:var(--bg-card); padding:8px 12px; border-radius:6px; border-left:3px solid var(--accent);">
+                                    <strong>Note:</strong> The sum of 4 quarters (Q1+Q2+Q3+Q4) may not exactly match the Annual (FY) Profit & Loss statement due to audit adjustments, restatements, or Screener's separate data source for annual filings. This is standard accounting behavior, not a data error.
+                                </div>
                             </div>
                             <span class="badge badge-accent">Quarterly Filings</span>
                         </div>
@@ -585,6 +640,37 @@
                                 </tbody>
                             </table>
                         </div>
+
+                        <!-- Structured Transcript LLM Analysis Card (Phi-3 / Qwen) -->
+                        <div class="transcript-analysis-card" id="transcriptAnalysisPanel" style="display:none;">
+                            <div class="tac-header">
+                                <div class="tac-title-group">
+                                    <span class="tac-badge" id="tacModelBadge">Ollama Phi-3 / Qwen</span>
+                                    <h4 class="tac-title" id="tacTitle">Management Commentary & Transcript Analysis</h4>
+                                </div>
+                                <span class="tac-tone-pill" id="tacTonePill">Tone: Optimistic</span>
+                            </div>
+                            <div class="tac-body">
+                                <div class="tac-section">
+                                    <h5 class="tac-section-title">Executive Summary & Operational Momentum</h5>
+                                    <p class="tac-text" id="tacExecutiveSummary">—</p>
+                                </div>
+                                <div class="tac-section">
+                                    <h5 class="tac-section-title">Forward-Looking Guidance & Management Targets</h5>
+                                    <p class="tac-text" id="tacGuidance">—</p>
+                                </div>
+                                <div class="tac-grid">
+                                    <div class="tac-col">
+                                        <h5 class="tac-section-title">Key Developments & Demand Drivers</h5>
+                                        <ul class="tac-list" id="tacDevelopments"></ul>
+                                    </div>
+                                    <div class="tac-col">
+                                        <h5 class="tac-section-title">Strategic Headwinds & Q&A Discussion</h5>
+                                        <ul class="tac-list tac-list-risks" id="tacHeadwinds"></ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -655,6 +741,94 @@
                                     <button class="btn btn-sm btn-rag" id="btnAskAboutNode">Ask AI About Node</button>
                                 </div>
                             </div>
+                </div>
+
+                <!-- Tab 6: Sector & Peer Comparison -->
+                <div class="tab-content" id="tab-sector">
+                    <div class="card panel-card">
+                        <div class="panel-header">
+                            <div>
+                                <h3 class="panel-title" id="sectorPanelTitle">Sector Peer Comparison</h3>
+                                <p class="panel-desc">Side-by-side performance benchmarking across tracked companies in the same industry.</p>
+                            </div>
+                            <div class="sector-action-group">
+                                <select class="sector-select" id="sectorFilterSelect">
+                                    <option value="">All Sectors</option>
+                                </select>
+                                <button class="btn btn-excel btn-sm" id="btnExportSectorExcel" title="Export Sector Master Excel Dossier">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                        <line x1="3" y1="9" x2="21" y2="9"></line>
+                                        <line x1="3" y1="15" x2="21" y2="15"></line>
+                                        <line x1="9" y1="3" x2="9" y2="21"></line>
+                                        <line x1="15" y1="3" x2="15" y2="21"></line>
+                                    </svg>
+                                    <span>Export Sector Excel</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="data-table" id="sectorPeerTable">
+                                <thead>
+                                    <tr>
+                                        <th>Company / Ticker</th>
+                                        <th>Sector</th>
+                                        <th>Market Cap</th>
+                                        <th>Stock P/E</th>
+                                        <th>Latest Period</th>
+                                        <th>Revenue</th>
+                                        <th>Growth (YoY)</th>
+                                        <th>Operating Margin</th>
+                                        <th>Net Profit</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sectorPeerTableBody">
+                                    <!-- Dynamic Peer Rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 7: Operational Model & Research Matrix (Spreadsheet Replication) -->
+                <div class="tab-content" id="tab-op-matrix">
+                    <div class="card panel-card">
+                        <div class="panel-header">
+                            <div>
+                                <h3 class="panel-title" id="opMatrixPanelTitle">Quarterly Operational Matrix & Financial Model</h3>
+                                <p class="panel-desc">Statutory P&L results fused with 25+ granular operational disclosures (Seats, Centers, Occupancy %, Client Tenure, Segment Revenues) spanning Q3 FY24 through 2026+ quarters.</p>
+                            </div>
+                            <div class="op-matrix-controls">
+                                <div class="op-scope-toggle">
+                                    <select id="opCompanySelect" class="sector-select" style="margin-right: 6px; font-size: 0.82rem; padding: 4px 8px; border-radius: 6px;" title="Select Company to view"></select>
+                                    <button class="btn btn-sm btn-outline active" id="btnOpScopeCompany">This Company</button>
+                                    <button class="btn btn-sm btn-outline" id="btnOpScopeSector">Sector Comparison (All Tracked)</button>
+                                </div>
+                                <button class="btn btn-sm btn-excel" id="btnExportOpMatrixExcel" title="Download formatted multi-quarter financial model Excel">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                        <line x1="3" y1="9" x2="21" y2="9"></line>
+                                        <line x1="3" y1="15" x2="21" y2="15"></line>
+                                        <line x1="9" y1="3" x2="9" y2="21"></line>
+                                        <line x1="15" y1="3" x2="15" y2="21"></line>
+                                    </svg>
+                                    <span>Export Model (.xlsx)</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="op-matrix-legend">
+                            <span class="legend-chip"><span class="chip-color chip-yellow"></span> Core P&L & Headline KPIs</span>
+                            <span class="legend-chip"><span class="chip-color chip-navy"></span> Company Headers</span>
+                            <span class="legend-chip"><span class="chip-color chip-blue"></span> Capacity, Occupancy & Segment Disclosures</span>
+                        </div>
+
+                        <div class="table-responsive op-matrix-container" id="opMatrixContainer">
+                            <div class="op-loading-state" id="opMatrixLoading" style="display:none;">
+                                <div class="spinner"></div>
+                                <p>Loading multi-quarter operational research matrix...</p>
+                            </div>
+                            <div id="opMatrixTableWrapper"></div>
                         </div>
                     </div>
                 </div>
@@ -684,17 +858,19 @@
                 <div class="modal-field">
                     <label class="modal-label" for="screenerSearchInput">Search Company or Ticker on Screener.in</label>
                     <div class="screener-input-wrap">
-                        <input type="text" id="screenerSearchInput" class="modal-input" placeholder="e.g. INFY, RELIANCE, HDFCBANK, TATAMOTORS, ITC..." autocomplete="off">
+                        <input type="text" id="screenerSearchInput" class="modal-input" placeholder="Type company name or ticker (e.g. Awfis, TCS, Reliance)..." autocomplete="off">
+                        <div class="screener-live-spinner" id="screenerModalSpinner" style="display:none;"></div>
                         <div class="screener-dropdown" id="screenerDropdown" style="display:none;"></div>
                     </div>
                 </div>
 
                 <div class="modal-chips-row">
                     <span class="chips-label">Quick Suggestions:</span>
+                    <button type="button" class="tag-chip" onclick="selectScreenerSuggestion('AWFIS')">AWFIS</button>
+                    <button type="button" class="tag-chip" onclick="selectScreenerSuggestion('TCS')">TCS</button>
                     <button type="button" class="tag-chip" onclick="selectScreenerSuggestion('INFY')">INFY (Infosys)</button>
                     <button type="button" class="tag-chip" onclick="selectScreenerSuggestion('RELIANCE')">RELIANCE</button>
                     <button type="button" class="tag-chip" onclick="selectScreenerSuggestion('HDFCBANK')">HDFCBANK</button>
-                    <button type="button" class="tag-chip" onclick="selectScreenerSuggestion('TATAMOTORS')">TATAMOTORS</button>
                 </div>
 
                 <!-- Pipeline Progress Stepper -->
@@ -714,6 +890,44 @@
                 <button class="btn btn-primary btn-run-ingest" id="btnExecuteIngest">
                     <span id="btnExecuteIngestText">Scrape & Ingest into Knowledge Graph</span>
                     <div class="spinner-sm" id="ingestBtnSpinner" style="display:none;"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal-backdrop" id="deleteConfirmModal" style="display:none;">
+        <div class="modal-card modal-danger-card">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <div class="modal-icon-badge danger-icon-badge">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="modal-title">Delete Company</h3>
+                        <p class="modal-subtitle">Permanently delete company records and downloaded filings</p>
+                    </div>
+                </div>
+                <button class="modal-close" id="btnCloseDeleteModal" title="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="delete-warning-box">
+                    <div class="delete-company-target" id="deleteCompanyTargetName">Tata Consultancy Services Ltd.</div>
+                    <p class="delete-warning-msg">
+                        This action will <strong>permanently purge</strong> this company, all associated annual report PDFs, quarterly concall transcripts, extracted risk disclosures, multi-year financial statements, and knowledge graph links from the MySQL database and disk.
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="btnCancelDeleteModal">Cancel</button>
+                <button class="btn btn-danger-action" id="btnConfirmDelete">
+                    <span id="btnConfirmDeleteText">Yes, Delete Permanently</span>
+                    <div class="spinner-sm" id="deleteSpinner" style="display:none;"></div>
                 </button>
             </div>
         </div>

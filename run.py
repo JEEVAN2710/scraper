@@ -215,7 +215,7 @@ def run_graphify_command() -> bool:
         return False
 
 
-def run_web_server(host: str = "127.0.0.1", port: int = 8000) -> None:
+def run_web_server(host: str = "127.0.0.1", port: int = 8000, reload: bool = False) -> None:
     """Launch the Uvicorn web server and dashboard UI."""
     try:
         import uvicorn
@@ -225,8 +225,9 @@ def run_web_server(host: str = "127.0.0.1", port: int = 8000) -> None:
         print(f"  * Dashboard URL:  http://localhost:{port}")
         print(f"  * API Docs:       http://localhost:{port}/docs")
         print(f"  * Health Status:  http://localhost:{port}/api/health")
+        print(f"  * Auto Reload:    {'Enabled' if reload else 'Disabled'}")
         print("========================================================\n")
-        uvicorn.run("app.main:app", host=host, port=port, reload=False)
+        uvicorn.run("app.main:app", host=host, port=port, reload=reload)
     except Exception as exc:
         logger.exception("Web server failed to start or crashed: %s", exc)
         print(f"[FAIL] Web server error: {exc}")
@@ -275,11 +276,20 @@ def main() -> None:
             default=8000,
             help="Port to bind the web server (default: 8000).",
         )
+        parser.add_argument(
+            "--reload",
+            "-r",
+            action="store_true",
+            help="Enable auto-reload on code changes (default in development).",
+        )
 
         args = parser.parse_args()
 
         settings = get_settings()
         setup_logging(log_level=settings.LOG_LEVEL, log_dir=settings.LOGS_DIR)
+
+        is_dev = getattr(settings, "APP_ENV", "development").lower() == "development"
+        should_reload = args.reload or is_dev
 
         if args.health:
             healthy = run_health_check()
@@ -293,10 +303,10 @@ def main() -> None:
         elif args.info:
             show_info()
         elif args.serve:
-            run_web_server(port=args.port)
+            run_web_server(port=args.port, reload=should_reload)
         else:
             # Default behavior when run directly without flags
-            run_web_server(port=args.port)
+            run_web_server(port=args.port, reload=should_reload)
 
     except Exception as exc:
         logger.critical("Fatal exception in main execution: %s", exc, exc_info=True)

@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router as api_router
@@ -87,4 +87,20 @@ def serve_graph():
     except Exception as exc:
         logger.exception("Error serving graph page: %s", exc)
         return JSONResponse(status_code=500, content={"error": "Failed to load graph explorer."})
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def serve_favicon():
+    """Serve favicon.ico to prevent 404 in browser requests."""
+    try:
+        ico_file = frontend_dir / "favicon.ico"
+        if ico_file.exists():
+            return FileResponse(str(ico_file), media_type="image/x-icon")
+        svg_file = frontend_dir / "favicon.svg"
+        if svg_file.exists():
+            return FileResponse(str(svg_file), media_type="image/svg+xml")
+        return Response(status_code=204)
+    except Exception as exc:
+        logger.debug("Favicon request exception: %s", exc)
+        return Response(status_code=204)
 

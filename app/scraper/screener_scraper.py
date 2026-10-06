@@ -2,6 +2,7 @@
 
 import logging
 import re
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import httpx
@@ -20,6 +21,12 @@ DEFAULT_HEADERS = {
     "Accept-Language": "en-US,en;q=0.5",
 }
 
+DOWNLOAD_HEADERS = {
+    **DEFAULT_HEADERS,
+    "Accept": "application/pdf,application/xhtml+xml,text/html;q=0.9,*/*;q=0.8",
+    "Referer": "https://www.screener.in/",
+}
+
 
 class ScreenerScraper:
     """Automates company research, financial statements extraction, and PDF scraping from Screener.in."""
@@ -31,19 +38,22 @@ class ScreenerScraper:
         self.download_dir.mkdir(parents=True, exist_ok=True)
 
     def search_company(self, query: str) -> List[Dict[str, Any]]:
-        """Search for a company on Screener.in by name or ticker."""
-        logger.info("Searching Screener.in for query: '%s'", query)
-        url = f"{self.base_url}/api/company/search/?q={query}"
+        """Search for a company on Screener.in by name or ticker using official search API."""
+        clean_q = query.strip()
+        if not clean_q:
+            return []
+        logger.info("Searching Screener.in live API for query: '%s'", clean_q)
+        url = f"{self.base_url}/api/company/search/"
         try:
             with httpx.Client(timeout=10.0, headers=DEFAULT_HEADERS) as client:
-                res = client.get(url)
+                res = client.get(url, params={"q": clean_q})
                 if res.status_code == 200:
                     results = res.json()
                     parsed = []
                     for item in results:
                         item_url = item.get("url", "")
-                        # Extract ticker from URL like /company/INFY/consolidated/
-                        ticker_match = re.search(r"/company/([^/]+)/", item_url)
+                        # Extract ticker from URL like /company/AWFIS/consolidated/ or /company/TCS/
+                        ticker_match = re.search(r"/company/([^/]+)/?", item_url)
                         ticker = ticker_match.group(1).upper() if ticker_match else item.get("name", "")[:6].upper()
                         parsed.append({
                             "id": item.get("id"),
@@ -51,13 +61,13 @@ class ScreenerScraper:
                             "ticker": ticker,
                             "url": item_url,
                         })
-                    logger.info("Found %d matching companies for query '%s'", len(parsed), query)
+                    logger.info("Found %d matching companies for query '%s'", len(parsed), clean_q)
                     return parsed
                 else:
-                    logger.warning("Screener search API returned status %s for query '%s'", res.status_code, query)
+                    logger.warning("Screener search API returned status %s for query '%s'", res.status_code, clean_q)
                     return []
         except Exception as exc:
-            logger.exception("Error querying Screener.in search API: %s", exc)
+            logger.exception("Error querying Screener.in search API for '%s': %s", clean_q, exc)
             return []
 
     def fetch_company_data(self, relative_url_or_ticker: str) -> Dict[str, Any]:
@@ -197,7 +207,7 @@ class ScreenerScraper:
         return None
 
     def _parse_quarterly_results(self, soup: BeautifulSoup) -> List[Dict[str, Any]]:
-        """Extract recent quarterly P&L results from Screener #quarters section."""
+        """Extract all quarterly P&L results from Screener #quarters section with fiscal quarter mapping."""
         quarters_list: List[Dict[str, Any]] = []
         try:
             q_sec = soup.find("section", id="quarters")
@@ -223,12 +233,28 @@ class ScreenerScraper:
                     rows_data[row_title] = values
 
             num_q = len(headers)
-            recent_idx = range(max(0, num_q - 5), num_q)
-            for idx in recent_idx:
-                q_period = headers[idx] if idx < len(headers) else f"Q{idx+1}"
+            for idx in range(num_q):
+                raw_header = headers[idx] if idx < len(headers) else f"Q{idx+1}"
+                
+                # Fiscal quarter normalization: "Jun 2024" -> "Q1 FY25", "Dec 2023" -> "Q3 FY24"
+                q_period = raw_header
+                m = re.search(r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*(\d{4})", raw_header, re.IGNORECASE)
+                if m:
+                    mon = m.group(1).title()
+                    yr = int(m.group(2))
+                    if mon in ["Apr", "May", "Jun"]:
+                        q_period = f"Q1 FY{(yr + 1) % 100:02d}"
+                    elif mon in ["Jul", "Aug", "Sep"]:
+                        q_period = f"Q2 FY{(yr + 1) % 100:02d}"
+                    elif mon in ["Oct", "Nov", "Dec"]:
+                        q_period = f"Q3 FY{(yr + 1) % 100:02d}"
+                    elif mon in ["Jan", "Feb", "Mar"]:
+                        q_period = f"Q4 FY{yr % 100:02d}"
 
-                def _get_q_val(k: str) -> Optional[float]:
+                def _get_q_val(k: str, exclude: Optional[str] = None) -> Optional[float]:
                     for r_key, vals in rows_data.items():
+                        if exclude and exclude in r_key:
+                            continue
                         if k in r_key and idx < len(vals):
                             try:
                                 v_clean = re.sub(r"[^\d.-]", "", vals[idx])
@@ -238,13 +264,30 @@ class ScreenerScraper:
                     return None
 
                 sales = _get_q_val("sales")
+                expenses = _get_q_val("expenses")
                 op_profit = _get_q_val("operating profit")
                 opm = _get_q_val("opm")
+                other_income = _get_q_val("other income")
+                interest = _get_q_val("interest")
+                depreciation = _get_q_val("depreciation")
+                pbt = _get_q_val("profit before tax")
+                tax_pct = _get_q_val("tax", exclude="before")
                 net_profit = _get_q_val("net profit")
                 eps = _get_q_val("eps")
 
                 quarters_list.append({
                     "period": q_period,
+                    "raw_period": raw_header,
+                    "sales_cr": sales,
+                    "expenses_cr": expenses,
+                    "operating_profit_cr": op_profit,
+                    "opm_pct": opm,
+                    "other_income_cr": other_income,
+                    "interest_cr": interest,
+                    "depreciation_cr": depreciation,
+                    "pbt_cr": pbt,
+                    "tax_pct": tax_pct,
+                    "net_profit_cr": net_profit,
                     "revenue": sales * 1e7 if sales is not None else None,
                     "operating_profit": op_profit * 1e7 if op_profit is not None else None,
                     "operating_margin": (opm / 100.0) if opm is not None else None,
@@ -360,9 +403,11 @@ class ScreenerScraper:
         seen_urls = set()
 
         try:
-            for a in soup.find_all("a", href=True):
+            # Check dedicated annual-reports section first to preserve descending year order
+            ar_container = soup.find("div", class_="annual-reports") or soup
+            for a in ar_container.find_all("a", href=True):
                 href = a["href"].strip()
-                if not href.lower().endswith(".pdf") and ".pdf" not in href.lower():
+                if not href.lower().endswith(".pdf") and ".pdf" not in href.lower() and "corpfiling" not in href.lower() and "bseplus" not in href.lower():
                     continue
 
                 if href in seen_urls:
@@ -388,7 +433,7 @@ class ScreenerScraper:
         return reports
 
     def _extract_concall_transcripts(self, soup: BeautifulSoup) -> List[Dict[str, Any]]:
-        """Extract quarterly concall transcript links and periods from Screener HTML."""
+        """Extract quarterly concall transcript links, presentations, and periods from Screener HTML."""
         concalls: List[Dict[str, Any]] = []
         try:
             concall_div = soup.find("div", class_="concalls")
@@ -396,11 +441,15 @@ class ScreenerScraper:
                 logger.info("No concalls section found on page")
                 return concalls
 
+            seen_periods: Dict[str, Dict[str, Any]] = {}
+
             for li in concall_div.find_all("li"):
                 period_el = li.find("div", class_="ink-600")
-                period = period_el.text.strip() if period_el else "Unknown Period"
+                period = re.sub(r"\s+", " ", period_el.text).strip() if period_el else "Unknown Period"
 
-                transcript_url = None
+                transcript_urls: List[str] = []
+                ppt_url = None
+
                 for a in li.find_all("a", href=True):
                     href = a["href"].strip()
                     text = a.text.strip().lower()
@@ -412,18 +461,30 @@ class ScreenerScraper:
                     if "youtu" in href.lower():
                         continue
 
-                    if text == "transcript" or "transcript" in title:
-                        transcript_url = href
-                        break
+                    if "transcript" in text or "transcript" in title:
+                        transcript_urls.append(href)
+                    elif text in ("ppt", "presentation", "factsheet") or "presentation" in title:
+                        ppt_url = href
 
-                if transcript_url:
-                    concalls.append({
-                        "period": period,
-                        "title": f"Concall Transcript {period}",
-                        "url": transcript_url,
-                    })
+                if transcript_urls:
+                    if period not in seen_periods:
+                        item = {
+                            "period": period,
+                            "title": f"Concall Transcript {period}",
+                            "url": transcript_urls[0],
+                            "fallback_url": transcript_urls[1] if len(transcript_urls) > 1 else None,
+                            "ppt_url": ppt_url,
+                        }
+                        seen_periods[period] = item
+                        concalls.append(item)
+                    else:
+                        existing = seen_periods[period]
+                        if not existing.get("fallback_url") and transcript_urls[0] != existing.get("url"):
+                            existing["fallback_url"] = transcript_urls[0]
+                        if not existing.get("ppt_url") and ppt_url:
+                            existing["ppt_url"] = ppt_url
 
-            logger.info("Extracted %d concall transcripts with downloadable PDFs", len(concalls))
+            logger.info("Extracted %d distinct concall transcripts with downloadable PDFs", len(concalls))
         except Exception as exc:
             logger.exception("Error extracting concall transcripts: %s", exc)
 
@@ -436,7 +497,7 @@ class ScreenerScraper:
         report_title: str = "Annual_Report",
         timeout: float = 45.0,
     ) -> Path:
-        """Download official PDF report to local downloads directory."""
+        """Download official PDF report to local downloads directory with retry and proper headers."""
         # Strip URL fragment like #page=169
         pdf_url = pdf_url.split("#")[0].strip()
         clean_title = re.sub(r"[^\w\-]", "_", report_title).strip("_")
@@ -445,15 +506,23 @@ class ScreenerScraper:
 
         logger.info("Downloading PDF from %s to %s...", pdf_url, target_path)
 
-        try:
-            with httpx.Client(timeout=timeout, headers=DEFAULT_HEADERS, follow_redirects=True) as client:
-                res = client.get(pdf_url)
-                if res.status_code != 200:
+        last_exc = None
+        for attempt in range(1, 3):
+            try:
+                with httpx.Client(timeout=timeout, headers=DOWNLOAD_HEADERS, follow_redirects=True) as client:
+                    res = client.get(pdf_url)
+                    if res.status_code == 200:
+                        # Verify we didn't receive a tiny HTML error page masquerading as 200
+                        if len(res.content) > 500:
+                            target_path.write_bytes(res.content)
+                            logger.info("Successfully downloaded %d bytes to %s", len(res.content), target_path)
+                            return target_path
                     raise RuntimeError(f"HTTP error {res.status_code} downloading PDF from {pdf_url}")
+            except Exception as exc:
+                last_exc = exc
+                logger.warning("Attempt %d to download PDF from %s encountered: %s", attempt, pdf_url, exc)
+                if attempt < 2:
+                    time.sleep(1.0)
 
-                target_path.write_bytes(res.content)
-                logger.info("Successfully downloaded %d bytes to %s", len(res.content), target_path)
-                return target_path
-        except Exception as exc:
-            logger.exception("Failed to download PDF from %s: %s", pdf_url, exc)
-            raise
+        logger.exception("Failed to download PDF from %s: %s", pdf_url, last_exc)
+        raise last_exc or RuntimeError(f"Failed to download PDF from {pdf_url}")

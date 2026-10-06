@@ -80,3 +80,37 @@ def test_directory_creation(tmp_path):
     assert settings.PROCESSED_DIR.exists()
     assert settings.EXPORT_DIR.exists()
     assert settings.LOGS_DIR.exists()
+
+
+def test_llm_flag_and_model_switching(monkeypatch):
+    """Verify LLM toggle flags and model switching configurations."""
+    # Default state
+    settings_default = Settings()
+    assert settings_default.LLM_ENABLED is True
+    assert settings_default.llm_enabled is True
+    assert settings_default.LLM_PROVIDER == "ollama"
+
+    # Turn off via LLM_ENABLED
+    monkeypatch.setenv("LLM_ENABLED", "false")
+    settings_off = Settings()
+    assert settings_off.LLM_ENABLED is False
+    assert settings_off.llm_enabled is False
+
+    # Switch model
+    monkeypatch.setenv("LLM_ENABLED", "true")
+    monkeypatch.setenv("OLLAMA_MODEL", "qwen2.5:3b")
+    settings_model = Settings()
+    assert settings_model.OLLAMA_MODEL == "qwen2.5:3b"
+    assert settings_model.llm_enabled is True
+
+    # Turn off via provider
+    monkeypatch.setenv("LLM_PROVIDER", "disabled")
+    settings_disabled = Settings()
+    assert settings_disabled.llm_enabled is False
+
+
+def test_invalid_llm_provider(monkeypatch):
+    """Verify invalid LLM provider raises validation error."""
+    monkeypatch.setenv("LLM_PROVIDER", "unsupported_provider")
+    with pytest.raises(ValidationError):
+        Settings()

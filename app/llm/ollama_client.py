@@ -25,6 +25,17 @@ class OllamaProvider(LLMProvider):
 
     def check_availability(self) -> Dict[str, Any]:
         """Check if the local Ollama server is running and check pulled models."""
+        if not getattr(self.settings, "llm_enabled", True):
+            return {
+                "available": False,
+                "enabled": False,
+                "base_url": self.base_url,
+                "target_model": self.model,
+                "model_pulled": False,
+                "installed_models": [],
+                "instruction": "LLM is turned OFF via LLM_ENABLED=false or LLM_PROVIDER=disabled in .env",
+            }
+
         url = f"{self.base_url}/api/tags"
         try:
             with httpx.Client(timeout=3.0) as client:
@@ -35,6 +46,7 @@ class OllamaProvider(LLMProvider):
                     is_loaded = any(self.model in m for m in models)
                     return {
                         "available": True,
+                        "enabled": True,
                         "base_url": self.base_url,
                         "target_model": self.model,
                         "model_pulled": is_loaded,
@@ -42,6 +54,7 @@ class OllamaProvider(LLMProvider):
                     }
                 return {
                     "available": False,
+                    "enabled": True,
                     "error": f"Ollama HTTP status {res.status_code}",
                     "target_model": self.model,
                 }
@@ -49,6 +62,7 @@ class OllamaProvider(LLMProvider):
             logger.debug("Ollama is not currently responding at %s: %s", self.base_url, exc)
             return {
                 "available": False,
+                "enabled": True,
                 "error": str(exc),
                 "target_model": self.model,
                 "instruction": f"Run 'ollama run {self.model}' in your terminal to start Ollama locally.",
@@ -56,6 +70,12 @@ class OllamaProvider(LLMProvider):
 
     def generate(self, prompt: str, system: Optional[str] = None) -> str:
         """Send prompt to Ollama's /api/generate endpoint with low temperature for factual precision."""
+        if not getattr(self.settings, "llm_enabled", True):
+            raise RuntimeError(
+                "LLM inference is turned OFF via LLM_ENABLED=false or LLM_PROVIDER=disabled in .env. "
+                "Set LLM_ENABLED=true to enable Ollama generation."
+            )
+
         url = f"{self.base_url}/api/generate"
         payload = {
             "model": self.model,

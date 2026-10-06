@@ -38,6 +38,16 @@ class Settings(BaseSettings):
     MYSQL_POOL_NAME: str = Field(default="financial_ai_pool", description="Connection pool name")
     MYSQL_CONNECT_TIMEOUT: int = Field(default=10, description="Database connection timeout in seconds")
 
+    # LLM Configuration & Model Switch
+    LLM_ENABLED: bool = Field(
+        default=True,
+        description="Master switch to turn LLM on or off (true / false)",
+    )
+    LLM_PROVIDER: str = Field(
+        default="ollama",
+        description="Active LLM provider. Options: 'ollama' | 'disabled'",
+    )
+
     # Ollama LLM Configuration (Phase 4)
     OLLAMA_BASE_URL: str = Field(default="http://localhost:11434", description="Ollama API base URL")
     OLLAMA_MODEL: str = Field(default="phi3:mini", description="Ollama model identifier")
@@ -50,11 +60,18 @@ class Settings(BaseSettings):
     EXPORT_DIR: Path = Field(default=Path("data/exports"), description="Directory for generated reports")
     LOGS_DIR: Path = Field(default=Path("logs"), description="Directory for runtime log files")
 
-    # Document Processing Parameters (Phase 3)
+    # Document Processing Parameters
     CHUNK_SIZE: int = Field(default=1000, description="Maximum characters per chunk")
     CHUNK_OVERLAP: int = Field(default=150, description="Character overlap between consecutive chunks")
     OCR_FALLBACK_MIN_WORDS: int = Field(default=20, description="Minimum word threshold to trigger OCR fallback")
     OCR_LANGUAGE: str = Field(default="eng", description="Tesseract OCR language code")
+
+    # Document Discovery & Acquisition Parameters (Phase 3)
+    DOWNLOAD_TIMEOUT: float = Field(default=45.0, description="Timeout in seconds for downloading documents")
+    DOWNLOAD_MAX_SIZE_MB: int = Field(default=100, description="Maximum allowed PDF size in MB")
+    DOWNLOAD_CHUNK_SIZE: int = Field(default=65536, description="Chunk size in bytes for streaming downloads")
+    DISCOVERY_TIMEOUT: float = Field(default=25.0, description="Timeout in seconds for web source discovery")
+    DISCOVERY_MAX_PDFS: int = Field(default=30, description="Maximum candidate PDFs to discover per source")
 
     # API Configuration (Phase 7)
     API_HOST: str = Field(default="0.0.0.0", description="FastAPI host")
@@ -68,6 +85,27 @@ class Settings(BaseSettings):
         if upper_val not in valid_levels:
             raise ValueError(f"Invalid LOG_LEVEL '{value}'. Allowed: {sorted(valid_levels)}")
         return upper_val
+
+    @field_validator("LLM_PROVIDER")
+    @classmethod
+    def validate_llm_provider(cls, value: str) -> str:
+        valid_providers = {"ollama", "disabled"}
+        lower_val = value.lower()
+        if lower_val not in valid_providers:
+            raise ValueError(
+                f"Invalid LLM_PROVIDER '{value}'. Allowed: {sorted(valid_providers)}"
+            )
+        return lower_val
+
+    @property
+    def llm_enabled(self) -> bool:
+        """Returns True when LLM is turned on and provider is active."""
+        return bool(self.LLM_ENABLED and self.LLM_PROVIDER != "disabled")
+
+    @property
+    def is_llm_enabled(self) -> bool:
+        """Alias for llm_enabled."""
+        return self.llm_enabled
 
     def ensure_directories(self) -> None:
         """Ensure all storage and logging directories exist on disk."""
